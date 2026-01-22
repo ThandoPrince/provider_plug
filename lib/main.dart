@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_application_2/common/controller/bookings/booking_by_orderID_controller.dart';
 import 'package:flutter_application_2/common/controller/bookings/bookings_by_email_controller.dart';
 import 'package:flutter_application_2/common/controller/bookings/negotiation_rounds_ctrl.dart';
+import 'package:flutter_application_2/common/controller/bookings/session_by_shipment_ctrl.dart';
 import 'package:flutter_application_2/common/controller/bookings/shipment_controller.dart';
 import 'package:flutter_application_2/common/controller/bookings/shipment_route_controller.dart';
 import 'package:flutter_application_2/common/controller/bookings/sp_accept_negotiation_ctrl.dart';
@@ -114,6 +115,7 @@ class MyAppProviders extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => ShipmentController()),
         ChangeNotifierProvider(create: (_) => SpLiveLocationPostController()),
         ChangeNotifierProvider(create: (_) => ShipmentRouteController()),
+        ChangeNotifierProvider(create: (_) => SessionByShipmentController()),
       ],
       child: const MainApp(),
     );

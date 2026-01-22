@@ -2,6 +2,7 @@ import 'package:flutter_application_2/common/models/models/client_models/client_
 import 'package:flutter_application_2/common/models/models/client_models/client_auth.dart';
 import 'package:flutter_application_2/common/models/models/client_models/clients_details.dart';
 import 'package:flutter_application_2/common/models/models/order_service_models/order_pictures_model.dart';
+import 'package:flutter_application_2/common/models/models/provider_for_service_model.dart';
 import 'package:flutter_application_2/common/models/models/service_groups.dart';
 import 'package:flutter_application_2/common/models/models/services_model.dart';
 
@@ -13,7 +14,7 @@ class OrderService {
   final bool? isNegotiated;
   final ClientModel? client;
   final String? description;
-  final int? providerForServiceId;
+  final ProviderServiceModel? providerForService; // <-- now object
   final DateTime? requestedDateTime;
   final double? proposalPrice;
   final DateTime? requestedDate;
@@ -35,7 +36,7 @@ class OrderService {
     this.isNegotiated,
     this.client,
     this.description,
-    this.providerForServiceId,
+    this.providerForService,
     this.requestedDateTime,
     this.proposalPrice,
     this.requestedDate,
@@ -109,18 +110,11 @@ class OrderService {
       }
     }
 
-    // Provider ID
-    int? providerId;
-    final pfs = json['provider_for_service'];
-    if (pfs != null) {
-      if (pfs is Map<String, dynamic>) {
-        final idValue = pfs['id'];
-        providerId = idValue is int ? idValue : int.tryParse(idValue.toString());
-      } else if (pfs is int) {
-        providerId = pfs;
-      } else if (pfs is String) {
-        providerId = int.tryParse(pfs);
-      }
+    // Provider For Service
+    ProviderServiceModel? provider;
+    if (json['provider_for_service'] != null &&
+        json['provider_for_service'] is Map<String, dynamic>) {
+      provider = ProviderServiceModel.fromJson(json['provider_for_service']);
     }
 
     // Order Pictures
@@ -153,7 +147,7 @@ class OrderService {
       isNegotiated: json['is_negotiated'] as bool?,
       client: clientModel,
       description: json['description'] as String?,
-      providerForServiceId: providerId,
+      providerForService: provider, // <-- assigned object
       requestedDateTime: requestedDateTime,
       proposalPrice: json['proposal_price'] != null
           ? double.tryParse(json['proposal_price'].toString())
@@ -185,7 +179,7 @@ class OrderService {
         'is_negotiated': isNegotiated,
         'client': client?.toJson(),
         'description': description,
-        'provider_for_service': providerForServiceId,
+        'provider_for_service': providerForService?.toJson(),
         'requested_date_time': requestedDateTime?.toIso8601String(),
         'proposal_price': proposalPrice,
         'requested_date': requestedDate?.toIso8601String(),

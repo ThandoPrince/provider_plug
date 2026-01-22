@@ -2,8 +2,8 @@ import 'package:flutter_application_2/common/models/models/order_service_models/
 
 class SessionModel {
   final int? sessionId;
-  final int? shipmentId; // if backend sends shipment as ID
-  final Shipment? shipment; // optional full object
+  final int? shipmentId; 
+  final Shipment? shipment; 
   final DateTime? checkinTime;
   final Map<String, dynamic>? checkinLocation;
   final DateTime? checkoutTime;

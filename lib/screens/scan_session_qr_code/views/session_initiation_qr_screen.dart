@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_application_2/common/services/confirm_session_api.dart';
+import 'package:flutter_application_2/common/services/session_by_shipment_api.dart';
 import 'package:flutter_application_2/common/utils/kcolors.dart';
 import 'package:flutter_application_2/screens/scan_session_qr_code/session_confirmation/views/session_confirmation_screen.dart';
+import 'package:flutter_application_2/screens/scan_session_qr_code/widgets/session_live_location_helper.dart';
 import 'package:flutter_application_2/screens/scan_session_qr_code/widgets/header_widget.dart';
 import 'package:flutter_application_2/screens/scan_session_qr_code/widgets/laser_overlay_widget.dart';
+import 'package:flutter_application_2/screens/session/views/session_screen.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 
@@ -72,8 +75,6 @@ class _SessionInitiationQrScreenState extends State<SessionInitiationQrScreen>
   }
 
   Future<void> _confirmCheckin(BuildContext context, String token) async {
-  
-
   showDialog(
     context: context,
     barrierDismissible: false,
@@ -83,49 +84,54 @@ class _SessionInitiationQrScreenState extends State<SessionInitiationQrScreen>
   );
 
   try {
+    // 📍 Get current location
+    final location = await CheckinLocationService.getCurrentLocation();
+
+    // ✅ Confirm the session token
     final response = await ConfirmSessionApi.post(
       "/bookings/sessions/confirm_checkin/",
       body: {
         "checkin_token": token,
+        "checkin_location": location,
       },
     );
 
-    Navigator.pop(context); // close loader
-
-    if (response.statusCode == 200) {
-      final confirmed = await Navigator.push<bool>(
-        context,
-        MaterialPageRoute(
-          builder: (_) => SessionConfirmationScreen(
-            sessionToken: token,
-          ),
-        ),
-      );
-
-      if (confirmed == true) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            backgroundColor: Colors.green,
-            content: Text("Session confirmed successfully"),
-          ),
-        );
-
-        Navigator.pop(context, true); // exit scanner screen
-      } else {
-        cameraController.start(); // resume scanning
-       
-      }
-    } else {
+    if (response.statusCode != 200) {
       throw response.data["detail"] ?? "Invalid QR code";
     }
-  } catch (e) {
-    // Close loader safely
-    if (Navigator.canPop(context)) {
-      Navigator.pop(context);
+
+    // ✅ Fetch the session after confirmation
+    final shipmentId = response.data['shipment']['shipment_id'].toString();
+    final session = await SessionApi.getSessionByShipment(shipmentId);
+
+    Navigator.pop(context); // close loader
+
+    // ✅ Navigate to session screen with full session object
+    final confirmed = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => SessionScreen(
+          session: session, // pass full session object
+        ),
+      ),
+    );
+
+    if (confirmed == true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          backgroundColor: Colors.green,
+          content: Text("Session confirmed successfully"),
+        ),
+      );
+      Navigator.pop(context, true);
+    } else {
+      cameraController.start(); // restart camera if canceled
     }
+  } catch (e) {
+    if (Navigator.canPop(context)) Navigator.pop(context);
 
     cameraController.start();
-   
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         backgroundColor: Colors.red,
@@ -134,6 +140,8 @@ class _SessionInitiationQrScreenState extends State<SessionInitiationQrScreen>
     );
   }
 }
+
+
 
 
 }
