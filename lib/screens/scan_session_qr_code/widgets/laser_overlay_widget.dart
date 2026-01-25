@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_application_2/common/utils/kcolors.dart';
 
-class HuaweiQrOverlay extends StatelessWidget {
+class QrOverlay extends StatelessWidget {
   final Animation<double> animation;
 
-  const HuaweiQrOverlay({super.key, required this.animation});
+  const QrOverlay({super.key, required this.animation});
 
   @override
   Widget build(BuildContext context) {

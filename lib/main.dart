@@ -4,6 +4,7 @@ import 'package:flutter_application_2/common/controller/bookings/booking_by_orde
 import 'package:flutter_application_2/common/controller/bookings/bookings_by_email_controller.dart';
 import 'package:flutter_application_2/common/controller/bookings/negotiation_rounds_ctrl.dart';
 import 'package:flutter_application_2/common/controller/bookings/session_by_shipment_ctrl.dart';
+import 'package:flutter_application_2/common/controller/bookings/session_location_ping_controller.dart';
 import 'package:flutter_application_2/common/controller/bookings/shipment_controller.dart';
 import 'package:flutter_application_2/common/controller/bookings/shipment_route_controller.dart';
 import 'package:flutter_application_2/common/controller/bookings/sp_accept_negotiation_ctrl.dart';
@@ -20,7 +21,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 import 'package:here_sdk/core.dart';
 import 'package:here_sdk/core.engine.dart';
-import 'package:here_sdk/core.errors.dart';
+
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -116,6 +117,7 @@ class MyAppProviders extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => SpLiveLocationPostController()),
         ChangeNotifierProvider(create: (_) => ShipmentRouteController()),
         ChangeNotifierProvider(create: (_) => SessionByShipmentController()),
+        ChangeNotifierProvider(create: (_) => SessionLocationPingController()),
       ],
       child: const MainApp(),
     );

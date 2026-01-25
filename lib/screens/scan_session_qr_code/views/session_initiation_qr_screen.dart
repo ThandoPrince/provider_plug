@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_application_2/common/controller/bookings/session_location_ping_controller.dart';
 import 'package:flutter_application_2/common/services/confirm_session_api.dart';
 import 'package:flutter_application_2/common/services/session_by_shipment_api.dart';
 import 'package:flutter_application_2/common/utils/kcolors.dart';
@@ -8,6 +9,7 @@ import 'package:flutter_application_2/screens/scan_session_qr_code/widgets/heade
 import 'package:flutter_application_2/screens/scan_session_qr_code/widgets/laser_overlay_widget.dart';
 import 'package:flutter_application_2/screens/session/views/session_screen.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:provider/provider.dart';
 
 
 class SessionInitiationQrScreen extends StatefulWidget {
@@ -60,7 +62,7 @@ class _SessionInitiationQrScreenState extends State<SessionInitiationQrScreen>
           ),
 
           // Overlay
-          HuaweiQrOverlay(animation: _animationController),
+          QrOverlay(animation: _animationController),
 
           // Header
           Positioned(
@@ -106,14 +108,15 @@ class _SessionInitiationQrScreenState extends State<SessionInitiationQrScreen>
 
     Navigator.pop(context); // close loader
 
-    // ✅ Navigate to session screen with full session object
+    
     final confirmed = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
-        builder: (_) => SessionScreen(
-          session: session, // pass full session object
-        ),
-      ),
+    builder: (_) => ChangeNotifierProvider(
+      create: (_) => SessionLocationPingController(),
+      child: SessionScreen(session: session),
+    ),
+  ),
     );
 
     if (confirmed == true) {
@@ -125,7 +128,7 @@ class _SessionInitiationQrScreenState extends State<SessionInitiationQrScreen>
       );
       Navigator.pop(context, true);
     } else {
-      cameraController.start(); // restart camera if canceled
+      cameraController.start(); 
     }
   } catch (e) {
     if (Navigator.canPop(context)) Navigator.pop(context);

@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_application_2/common/models/models/order_service_models/Session_model.dart';
+import 'package:flutter_application_2/common/models/models/order_service_models/session_model.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 

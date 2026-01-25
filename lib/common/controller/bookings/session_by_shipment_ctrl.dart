@@ -1,5 +1,5 @@
 import 'package:flutter/foundation.dart';
-import 'package:flutter_application_2/common/models/models/order_service_models/Session_model.dart';
+import 'package:flutter_application_2/common/models/models/order_service_models/session_model.dart';
 import 'package:flutter_application_2/common/services/session_by_shipment_api.dart';
 
 class SessionByShipmentController extends ChangeNotifier {
