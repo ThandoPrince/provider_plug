@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_application_2/common/controller/bookings/session_location_ping_controller.dart';
+import 'package:flutter_application_2/common/controller/bookings/session_status_controller.dart';
 import 'package:flutter_application_2/common/models/models/order_service_models/session_model.dart';
 import 'package:flutter_application_2/common/models/models/order_service_models/shipment_model.dart';
 import 'package:flutter_application_2/common/utils/kcolors.dart';
+import 'package:flutter_application_2/screens/ratings_screen/views/ratings_screen.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:provider/provider.dart';
 
@@ -149,7 +151,7 @@ class _SessionScreenState extends State<SessionScreen> {
                           _buildGeofenceStatus(),
                           const SizedBox(height: 24),
 
-                          // Action Button
+                          
                           SizedBox(
                             width: double.infinity,
                             height: 55,
@@ -161,11 +163,43 @@ class _SessionScreenState extends State<SessionScreen> {
                                     borderRadius: BorderRadius.circular(16)),
                                 elevation: 0,
                               ),
-                              onPressed: () {
-                                _pingTimer?.cancel();
-                                _timer.cancel();
-                                Navigator.pop(context, true);
-                              },
+                              onPressed: () async {
+  try {
+    final position = await Geolocator.getCurrentPosition(
+      desiredAccuracy: LocationAccuracy.high,
+    );
+
+    final controller = context.read<SessionStatusController>();
+
+    final success = await controller.endSession(
+      status: 'completed',
+      sessionId: widget.session.sessionId!,
+      latitude: position.latitude,
+      longitude: position.longitude,
+      accuracy: position.accuracy,
+    );
+
+    if (success) {
+      _pingTimer?.cancel();
+      _timer.cancel();
+
+      // ✅ Navigate to RatingsScreen
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => RatingsScreen(
+            providerEmail: widget.session.shipment?.serviceOrdered?.order?.providerForService?.provider?.spProfile?.emailAddress ?? "",
+            sessionId: widget.session.sessionId,
+          ),
+        ),
+      );
+    }
+  } catch (e) {
+    debugPrint("❌ Failed to end session: $e");
+  }
+},
+
+
                               child: const Text("END SESSION",
                                   style: TextStyle(
                                       fontWeight: FontWeight.bold,
