@@ -8,30 +8,68 @@ class ShipmentController extends ChangeNotifier {
   List<Shipment> shipments = [];
   String? errorMessage;
 
-  Future<void> fetchShipments(String providerEmail) async {
-    
+  bool _disposed = false;
 
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
+
+  void _safeNotify() {
+    if (!_disposed) notifyListeners();
+  }
+
+  /// Fetch shipments and merge diff (update existing, add new)
+  Future<void> fetchShipments(String providerEmail) async {
     isLoading = true;
     errorMessage = null;
-    notifyListeners();
+    _safeNotify();
 
     try {
- 
+      final data = await ShipmentApi.getShipmentsByProvider(providerEmail);
 
-      shipments = await ShipmentApi.getShipmentsByProvider(providerEmail);
+      if (_disposed) return;
 
-      
+      // --- DIFF UPDATE ---
+      final Map<int, Shipment> currentMap = {
+        for (var s in shipments) s.shipmentId!: s
+      };
+      final List<Shipment> mergedList = [];
+
+      for (var newShipment in data) {
+        if (currentMap.containsKey(newShipment.shipmentId)) {
+          // Replace with new version
+          mergedList.add(newShipment);
+          currentMap.remove(newShipment.shipmentId);
+        } else {
+          // Add new shipment
+          mergedList.add(newShipment);
+        }
+      }
+
+
+      shipments = mergedList;
     } catch (e, stack) {
+      if (_disposed) return;
       errorMessage = e.toString();
       if (kDebugMode) {
         print("❌ ERROR in fetchShipments: $e");
         print("📌 STACKTRACE: $stack");
       }
     } finally {
+      if (_disposed) return;
       isLoading = false;
-      notifyListeners();
+      _safeNotify();
 
-      if (kDebugMode) print("fetchShipments() finished");
+      if (kDebugMode) print("fetchShipments() finished (diff applied)");
     }
+  }
+
+
+  void clearShipments() {
+    shipments.clear();
+    errorMessage = null;
+    _safeNotify();
   }
 }

@@ -13,6 +13,7 @@ class SpLiveLocationPostController extends ChangeNotifier {
   bool get isTracking => _isTracking;
   bool get isSending => _isSending;
 
+  /// Start live location tracking
   void startTracking({required String email, int intervalSeconds = 20}) {
     if (_isTracking || _disposed) return;
 
@@ -20,26 +21,27 @@ class SpLiveLocationPostController extends ChangeNotifier {
     _safeNotifyListeners();
 
     _timer = Timer.periodic(Duration(seconds: intervalSeconds), (timer) async {
-      if (_disposed) return; // Safety: stop sending if disposed
+      if (_disposed) return; // Stop if disposed
       await _sendLocation(email);
     });
   }
 
+  /// Stop tracking safely
   void stopTracking() {
     _timer?.cancel();
     _timer = null;
     _isTracking = false;
-
-    if (!_disposed) _safeNotifyListeners(); // Only notify if not disposed
+    _safeNotifyListeners();
   }
 
+  /// Send current GPS location to server
   Future<void> _sendLocation(String email) async {
+    if (_disposed) return;
+
+    _isSending = true;
+    _safeNotifyListeners();
+
     try {
-      if (_disposed) return;
-
-      _isSending = true;
-      _safeNotifyListeners();
-
       final position = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
       );
@@ -51,9 +53,9 @@ class SpLiveLocationPostController extends ChangeNotifier {
       );
 
       final success = await SpLiveLocationService.sendLiveLocation(model);
-      if (!success) debugPrint("Failed to send location to server");
+      if (!success) debugPrint("❌ Failed to send location to server");
     } catch (e) {
-      debugPrint("Location send error: $e");
+      debugPrint("❌ Location send error: $e");
     } finally {
       if (!_disposed) {
         _isSending = false;
@@ -62,11 +64,13 @@ class SpLiveLocationPostController extends ChangeNotifier {
     }
   }
 
+  /// Safe notifyListeners that avoids disposed crashes and tree-locked errors
   void _safeNotifyListeners() {
     if (!_disposed) {
-      try {
-        notifyListeners();
-      } catch (_) {}
+      // Post-frame callback ensures no setState while tree is locked
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!_disposed) notifyListeners();
+      });
     }
   }
 
@@ -74,7 +78,7 @@ class SpLiveLocationPostController extends ChangeNotifier {
   void dispose() {
     _timer?.cancel();
     _timer = null;
-    _disposed = true; // Set disposed last
+    _disposed = true; // Mark disposed first
     super.dispose();
   }
 }

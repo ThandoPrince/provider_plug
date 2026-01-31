@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_application_2/common/models/models/order_service_models/shipment_model.dart';
 import 'package:flutter_application_2/common/utils/kcolors.dart';
-import 'package:flutter_application_2/screens/scheduled_services/scheduled_services_details/widgets/schedule_action_buttons.dart';
-import 'package:flutter_application_2/screens/scheduled_services/scheduled_services_details/widgets/scheduled_address_tile.dart';
-import 'package:flutter_application_2/screens/scheduled_services/scheduled_services_details/widgets/scheduled_notes_section.dart';
-import 'package:flutter_application_2/screens/scheduled_services/scheduled_services_details/widgets/scheduled_order_details_helpers.dart';
-import 'package:flutter_application_2/screens/scheduled_services/scheduled_services_details/widgets/scheduled_service_images.dart';
+import 'package:flutter_application_2/screens/scheduled_services_details/widgets/schedule_action_buttons.dart';
+import 'package:flutter_application_2/screens/scheduled_services_details/widgets/scheduled_address_tile.dart';
+import 'package:flutter_application_2/screens/scheduled_services_details/widgets/scheduled_notes_section.dart';
+import 'package:flutter_application_2/screens/scheduled_services_details/widgets/scheduled_order_details_helpers.dart';
+import 'package:flutter_application_2/screens/scheduled_services_details/widgets/scheduled_service_images.dart';
 
 
 class ScheduledOrderDetails extends StatefulWidget {

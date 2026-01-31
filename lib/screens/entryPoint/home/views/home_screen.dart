@@ -17,29 +17,38 @@ class _HomeScreenState extends State<HomeScreen> {
   late SPBookingController _bookingController;
   late SpLiveLocationPostController _locationController;
 
+  // Track whether header is visible
+  bool _showHeader = true;
+
   @override
   void initState() {
     super.initState();
-
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      // Initialize controllers from providers
       _bookingController = Provider.of<SPBookingController>(context, listen: false);
       _locationController = Provider.of<SpLiveLocationPostController>(context, listen: false);
 
-      // Start polling bookings
       _bookingController.startPolling(widget.email);
-
-      // Start sending live location
       _locationController.startTracking(email: widget.email);
     });
   }
 
   @override
   void dispose() {
-    // Stop polling and live tracking safely
     _bookingController.stopPolling();
     _locationController.stopTracking();
     super.dispose();
+  }
+
+  // Called on scroll
+  void _onScroll(ScrollNotification notification) {
+    if (notification is ScrollUpdateNotification) {
+      // Hide header if user scrolls down, show if scroll up
+      if (notification.scrollDelta! > 0 && _showHeader) {
+        setState(() => _showHeader = false);
+      } else if (notification.scrollDelta! < 0 && !_showHeader) {
+        setState(() => _showHeader = true);
+      }
+    }
   }
 
   @override
@@ -60,19 +69,34 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
-                child: Text(
-                  "Active Bookings",
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
+              // Only show header if _showHeader is true
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                height: _showHeader ? 60 : 0,
+                child: _showHeader
+                    ? const Padding(
+                        padding: EdgeInsets.fromLTRB(20, 20, 20, 10),
+                        child: Text(
+                          "Active Bookings",
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      )
+                    : null,
               ),
+
+              // Scrollable list with listener
               Expanded(
-                child: HomeBodyWidget(email: widget.email),
+                child: NotificationListener<ScrollNotification>(
+                  onNotification: (notification) {
+                    _onScroll(notification);
+                    return false;
+                  },
+                  child: HomeBodyWidget(email: widget.email),
+                ),
               ),
             ],
           ),

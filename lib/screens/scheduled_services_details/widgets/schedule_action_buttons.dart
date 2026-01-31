@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_application_2/common/models/models/order_service_models/shipment_model.dart';
 import 'package:flutter_application_2/common/utils/kcolors.dart';
 import 'package:flutter_application_2/screens/schedule_directions/views/here_directions_schedule.dart';
-import 'package:flutter_application_2/screens/scheduled_services/scheduled_services_details/widgets/client_info_tile.dart';
+import 'package:flutter_application_2/screens/scheduled_services_details/widgets/client_info_tile.dart';
 import 'package:flutter_application_2/screens/schedule_directions/widgets/shipment_stauts_helper.dart';
 
 class ScheduleActionButtons extends StatelessWidget {

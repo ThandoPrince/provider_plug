@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_application_2/common/controller/bookings/update_ratings_controller.dart';
 import 'package:flutter_application_2/common/utils/kcolors.dart';
+import 'package:flutter_application_2/screens/entryPoint/controller/bottom_tab_notifier.dart';
 import 'package:flutter_application_2/screens/entryPoint/views/entry_point.dart';
 import 'package:flutter_application_2/screens/scheduled_services/views/scheduled_services_screen.dart';
 import 'package:provider/provider.dart';
@@ -194,19 +195,20 @@ class _RatingsScreenState extends State<RatingsScreen> {
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
               onPressed: () {
-                // Close the dialog
-                Navigator.of(context, rootNavigator: true).pop();
+  // Close the dialog
+  Navigator.of(context, rootNavigator: true).pop();
 
-                // Navigate to EntryPoint Home tab
-                Navigator.of(context).pushAndRemoveUntil(
-                  MaterialPageRoute(builder: (_) => const ScheduledOrdersScreen(email: "nomfundomabunda748@gmail.com",)),
-                  (route) => false,
-                );
+  // Reset bottom tab to Home
+  final tabNotifier = context.read<TabIndexNotifier>();
+  tabNotifier.setIndex(0);
 
-                // Optionally, you could also select the Home tab directly if using TabIndexNotifier:
-                // final tabNotifier = context.read<TabIndexNotifier>();
-                // tabNotifier.setIndex(0);
-              },
+  // Navigate to EntryPoint and remove all previous routes
+  Navigator.of(context).pushAndRemoveUntil(
+    MaterialPageRoute(builder: (_) => const EntryPoint()),
+    (route) => false,
+  );
+},
+
               child: const Text("Done", style: TextStyle(color: Colors.white)),
             ),
           ),
