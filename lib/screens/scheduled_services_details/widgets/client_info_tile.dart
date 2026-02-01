@@ -109,27 +109,48 @@ class ClientInfoTile extends StatelessWidget {
             childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             expandedCrossAxisAlignment: CrossAxisAlignment.start,
 
-            children: [
-              const Divider(height: 20, color: Kolors.kOffWhite, thickness: 1.5),
+     children: [
+  ConstrainedBox(
+    constraints: const BoxConstraints(
+      maxHeight: 260, // ✅ adjust if needed
+    ),
+    child: SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Divider(height: 20, color: Kolors.kOffWhite, thickness: 1.5),
 
-              const Text(
-                "Contact Information",
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                  color: Kolors.kDark,
-                ),
-              ),
-              const SizedBox(height: 8),
+          const Text(
+            "Contact Information",
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
+              color: Kolors.kDark,
+            ),
+          ),
+          const SizedBox(height: 8),
 
-              _buildDetailRow("Full Name", clientData.fullName.isNotEmpty ? clientData.fullName : "N/A", Icons.person_outline),
-              _buildDetailRow("Email", clientEmail, Icons.email_outlined),
-              _buildDetailRow("Phone", clientPhone, Icons.phone_outlined),
+          _buildDetailRow(
+            "Full Name",
+            clientData.fullName.isNotEmpty ? clientData.fullName : "N/A",
+            Icons.person_outline,
+          ),
 
-              const SizedBox(height: 10),
 
-              _buildDetailRow("Average Rating", "${clientData.rating ?? '0.00'} / 5.0", Icons.star_border),
-            ],
+          const SizedBox(height: 10),
+
+          _buildDetailRow(
+            "Average Rating",
+            "${clientData.rating ?? '0.00'} / 5.0",
+            Icons.star_border,
+          ),
+        ],
+      ),
+    ),
+  ),
+],
+
           ),
         ),
       ),

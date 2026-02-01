@@ -38,11 +38,15 @@ class ScheduleActionButtons extends StatelessWidget {
                   return DraggableScrollableSheet(
                     initialChildSize: 0.4,
                     minChildSize: 0.2,
-                    maxChildSize: 0.9,
+                    maxChildSize: 0.5,
                     builder: (_, controller) {
                       return Container(
                         decoration: const BoxDecoration(
-                          color: Colors.white,
+                           gradient: LinearGradient(
+              colors: [Kolors.kPrimary, Kolors.kSecondaryLight],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
                           borderRadius: BorderRadius.vertical(
                             top: Radius.circular(24),
                           ),

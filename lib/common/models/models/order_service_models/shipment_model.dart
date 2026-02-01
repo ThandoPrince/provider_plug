@@ -20,52 +20,63 @@ class Shipment {
   });
 
   factory Shipment.fromJson(Map<String, dynamic> json) {
-    // Parse shipmentId safely
-    int? parsedShipmentId;
-    if (json['shipment_id'] != null) {
-      parsedShipmentId = (json['shipment_id'] is int)
-          ? json['shipment_id']
-          : int.tryParse(json['shipment_id'].toString());
-    }
-
-    // Parse shipment schedule date safely
-    DateTime? parsedScheduleDate;
-    if (json['shipment_schedule_date'] != null) {
-      parsedScheduleDate = DateTime.tryParse(json['shipment_schedule_date'].toString());
-    }
-
-    // Parse shipment confirmation safely
-    bool? parsedConfirmation;
-    if (json['shipment_confirmation'] != null) {
-      if (json['shipment_confirmation'] is bool) {
-        parsedConfirmation = json['shipment_confirmation'];
-      } else {
-        parsedConfirmation = json['shipment_confirmation'].toString().toLowerCase() == 'true';
-      }
-    }
-
-    // Parse createdAt safely
-    DateTime? parsedCreatedAt;
-    if (json['created_at'] != null) {
-      parsedCreatedAt = DateTime.tryParse(json['created_at'].toString());
-    }
-
-    // Parse serviceOrdered safely
-    BookingItem? parsedServiceOrdered;
-    if (json['service_ordered'] != null && json['service_ordered'] is Map<String, dynamic>) {
-      parsedServiceOrdered = BookingItem.fromJson(json['service_ordered']);
-    }
-
-    return Shipment(
-      shipmentId: parsedShipmentId,
-      shipmentScheduleDate: parsedScheduleDate,
-      shipmentScheduleTime: json['shipment_schedule_time']?.toString(),
-      shipmentStatus: json['shipment_status']?.toString(),
-      shipmentConfirmation: parsedConfirmation,
-      serviceOrdered: parsedServiceOrdered,
-      createdAt: parsedCreatedAt,
-    );
+  // shipmentId
+  int? parsedShipmentId;
+  if (json['shipment_id'] != null) {
+    parsedShipmentId = (json['shipment_id'] is int)
+        ? json['shipment_id']
+        : int.tryParse(json['shipment_id'].toString());
   }
+
+  // ✅ FIX: combine date + time properly
+  DateTime? parsedScheduleDate;
+  final date = json['shipment_schedule_date'];
+  final time = json['shipment_schedule_time'];
+
+  if (date != null) {
+  final combined = time != null
+      ? "${date.toString()}T${time.toString()}"
+      : date.toString();
+
+  parsedScheduleDate = DateTime.tryParse(combined)?.toLocal();
+}
+
+
+  // shipment confirmation
+  bool? parsedConfirmation;
+  if (json['shipment_confirmation'] != null) {
+    parsedConfirmation = json['shipment_confirmation'] is bool
+        ? json['shipment_confirmation']
+        : json['shipment_confirmation']
+                .toString()
+                .toLowerCase() ==
+            'true';
+  }
+
+  // createdAt
+  DateTime? parsedCreatedAt;
+  if (json['created_at'] != null) {
+    parsedCreatedAt =
+        DateTime.tryParse(json['created_at'].toString())?.toLocal();
+  }
+
+  // service ordered
+  BookingItem? parsedServiceOrdered;
+  if (json['service_ordered'] is Map<String, dynamic>) {
+    parsedServiceOrdered = BookingItem.fromJson(json['service_ordered']);
+  }
+
+  return Shipment(
+    shipmentId: parsedShipmentId,
+    shipmentScheduleDate: parsedScheduleDate,
+    shipmentScheduleTime: time?.toString(),
+    shipmentStatus: json['shipment_status']?.toString(),
+    shipmentConfirmation: parsedConfirmation,
+    serviceOrdered: parsedServiceOrdered,
+    createdAt: parsedCreatedAt,
+  );
+}
+
 
   Map<String, dynamic> toJson() => {
         'shipment_id': shipmentId,
@@ -76,5 +87,9 @@ class Shipment {
         'service_ordered': serviceOrdered?.toJson(),
         'created_at': createdAt?.toIso8601String(),
       };
+
+      
 }
+
+
 

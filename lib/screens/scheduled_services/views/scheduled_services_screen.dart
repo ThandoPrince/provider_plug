@@ -115,26 +115,33 @@ class _ScheduledOrdersScreenState extends State<ScheduledOrdersScreen> {
                   children: [
                     // Animated header
                     // Animated header
-ClipRect(
-  child: AnimatedAlign(
-    duration: const Duration(milliseconds: 200),
-    alignment: Alignment.centerLeft,
-    heightFactor: _showHeader ? 1 : 0, // fully expand or collapse
-    child: SafeArea(
+// ✅ Always reserve system inset space
+SafeArea(
+  bottom: false,
+  child: AnimatedContainer(
+    duration: const Duration(milliseconds: 220),
+    height: _showHeader ? 56 : 0, // fixed header height
+    curve: Curves.easeOut,
+    child: SingleChildScrollView(
+      physics: const NeverScrollableScrollPhysics(),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Text(
-          "Scheduled Orders",
-          style: const TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-            fontSize: 22,
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: Text(
+            "Scheduled Orders",
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 22,
+            ),
           ),
         ),
       ),
     ),
   ),
 ),
+
 
 
                     // Orders list

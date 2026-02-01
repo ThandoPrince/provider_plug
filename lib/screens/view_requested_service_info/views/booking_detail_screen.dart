@@ -14,33 +14,16 @@ class BookingDetailScreen extends StatefulWidget {
 }
 
 class _BookingDetailScreenState extends State<BookingDetailScreen> {
-  late final ScrollController _scrollController;
   bool _showHeader = true;
-  double _lastOffset = 0;
 
-  @override
-  void initState() {
-    super.initState();
-    _scrollController = ScrollController()
-      ..addListener(() {
-        final offset = _scrollController.offset;
-
-        if (offset > _lastOffset && _showHeader) {
-          // scrolling down → hide header
-          setState(() => _showHeader = false);
-        } else if (offset < _lastOffset && !_showHeader) {
-          // scrolling up → show header
-          setState(() => _showHeader = true);
-        }
-
-        _lastOffset = offset;
-      });
-  }
-
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    super.dispose();
+  void _onScroll(ScrollNotification notification) {
+    if (notification is ScrollUpdateNotification) {
+      if (notification.scrollDelta! > 0 && _showHeader) {
+        setState(() => _showHeader = false);
+      } else if (notification.scrollDelta! < 0 && !_showHeader) {
+        setState(() => _showHeader = true);
+      }
+    }
   }
 
   @override
@@ -53,79 +36,81 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
           BookingByOrderIDController()..fetchBookingByOrderID(widget.orderId),
       child: Scaffold(
         backgroundColor: primaryColor,
-        body: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [primaryColor, secondaryColor],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
+        body: NotificationListener<ScrollNotification>(
+          onNotification: (notification) {
+            _onScroll(notification);
+            return false;
+          },
+          child: Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [primaryColor, secondaryColor],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
             ),
-          ),
-          child: Column(
-            children: [
-              // ✅ Animated header instead of AppBar
-              ClipRect(
-                child: AnimatedAlign(
-                  alignment: Alignment.centerLeft,
-                  duration: const Duration(milliseconds: 200),
-                  heightFactor: _showHeader ? 1 : 0,
-                  child: SafeArea(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 12),
-                      child: Text(
-                        "Order Details",
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 22,
-                        ),
+            child: Column(
+              children: [
+                // ✅ COLLAPSING HEADER
+                SafeArea(
+                  bottom: false,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 220),
+                    curve: Curves.easeOut,
+                    height: _showHeader ? 56 : 0,
+                    alignment: Alignment.centerLeft,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: const Text(
+                      "Order Details",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 22,
                       ),
                     ),
                   ),
                 ),
-              ),
 
-              // Expanded content
-              Expanded(
-                child: Consumer<BookingByOrderIDController>(
-                  builder: (context, controller, _) {
-                    if (controller.isLoading) {
-                      return const Center(
-                          child: CircularProgressIndicator(
-                              color: Colors.white));
-                    }
+                // ✅ CONTENT
+                Expanded(
+                  child: Consumer<BookingByOrderIDController>(
+                    builder: (context, controller, _) {
+                      if (controller.isLoading) {
+                        return const Center(
+                          child: CircularProgressIndicator(color: Colors.white),
+                        );
+                      }
 
-                    if (controller.errorMessage != null) {
-                      return Center(
-                        child: Text(
-                          controller.errorMessage!,
-                          style:
-                              const TextStyle(color: Colors.red, fontSize: 16),
+                      if (controller.errorMessage != null) {
+                        return Center(
+                          child: Text(
+                            controller.errorMessage!,
+                            style: const TextStyle(
+                                color: Colors.red, fontSize: 16),
+                          ),
+                        );
+                      }
+
+                      if (controller.booking == null) {
+                        return const Center(
+                          child: Text(
+                            "No booking details available.",
+                            style: TextStyle(color: Colors.white70),
+                          ),
+                        );
+                      }
+
+                      return SingleChildScrollView(
+                        physics: const BouncingScrollPhysics(),
+                        child: BookingDetailContent(
+                          booking: controller.booking!,
                         ),
                       );
-                    }
-
-                    if (controller.booking == null) {
-                      return const Center(
-                        child: Text(
-                          "No booking details available.",
-                          style: TextStyle(color: Colors.white70),
-                        ),
-                      );
-                    }
-
-                    return SingleChildScrollView(
-                      controller: _scrollController,
-                      
-                      child: BookingDetailContent(
-                        booking: controller.booking!,
-                      ),
-                    );
-                  },
+                    },
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
