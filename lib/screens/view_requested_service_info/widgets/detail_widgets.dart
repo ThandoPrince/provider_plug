@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_application_2/common/models/models/order_service_models/order_pictures_model.dart';
+import 'package:flutter_application_2/common/utils/kcolors.dart';
 import 'package:flutter_application_2/screens/view_requested_service_info/widgets/full_screen_gallery.dart';
 
 class DetailCard extends StatelessWidget {
@@ -56,7 +57,7 @@ class DetailCard extends StatelessWidget {
                     fontSize: 11,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 1.5,
-                    color: Colors.blueAccent.shade700,
+                    color: Kolors.kDark,
                   ),
                 ),
               ],

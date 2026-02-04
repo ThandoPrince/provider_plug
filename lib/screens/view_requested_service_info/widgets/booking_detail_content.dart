@@ -197,9 +197,9 @@ class BookingDetailContent extends StatelessWidget {
                     title: Text(
                       "Client Notes",
                       style: TextStyle(
-                        fontSize: 18,
+                        fontSize: 15,
                         fontWeight: FontWeight.w800,
-                        color: Colors.blueAccent,
+                        color: Kolors.kDark,
                       ),
                     ),
                     children: [

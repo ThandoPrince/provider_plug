@@ -23,7 +23,7 @@ class ScheduleActionButtons extends StatelessWidget {
           child: ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.white,
-              foregroundColor: Kolors.kPrimary,
+              foregroundColor: Kolors.kDark,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
@@ -36,9 +36,9 @@ class ScheduleActionButtons extends StatelessWidget {
                 backgroundColor: Colors.transparent,
                 builder: (_) {
                   return DraggableScrollableSheet(
-                    initialChildSize: 0.4,
+                    initialChildSize: 0.262,
                     minChildSize: 0.2,
-                    maxChildSize: 0.5,
+                    maxChildSize: 0.27,
                     builder: (_, controller) {
                       return Container(
                         decoration: const BoxDecoration(

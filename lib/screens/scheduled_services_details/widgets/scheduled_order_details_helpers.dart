@@ -46,7 +46,7 @@ class ScheduledOrderDetailsHelpers {
               style: TextStyle(
                 fontWeight: FontWeight.w500,
                 fontSize: 14,
-                color: Kolors.kDark.withOpacity(0.55), // Subtle labels
+                color: Kolors.kDark.withOpacity(0.7), // Subtle labels
               ),
             ),
           ),

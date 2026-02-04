@@ -38,7 +38,7 @@ class ScheduledAddressTile extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(Icons.pin_drop, color: Kolors.kPrimary, size: 28),
+              const Icon(Icons.pin_drop, color: Kolors.kDark, size: 28),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(

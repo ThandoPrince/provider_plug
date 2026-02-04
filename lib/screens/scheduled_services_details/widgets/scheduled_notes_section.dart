@@ -24,7 +24,7 @@ class _ScheduledNotesSectionState extends State<ScheduledNotesSection> {
           onTap: hasNotes ? () => setState(() => showNotes = !showNotes) : null,
           child: Row(
             children: [
-              const Icon(Icons.notes, color: Kolors.kPrimary),
+              const Icon(Icons.notes, color: Kolors.kDark),
               const SizedBox(width: 8),
               const Text(
                 "Client Notes",

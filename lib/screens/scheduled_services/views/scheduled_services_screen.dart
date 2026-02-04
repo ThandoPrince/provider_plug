@@ -254,7 +254,7 @@ SafeArea(
                                               child: Text(
                                                 "Price: R${order?.order?.proposalPrice?.toStringAsFixed(2) ?? '0.00'}",
                                                 style: const TextStyle(
-                                                  color: Kolors.kPrimary,
+                                                  color: Kolors.kDark,
                                                   fontWeight: FontWeight.bold,
                                                   fontSize: 16,
                                                 ),
