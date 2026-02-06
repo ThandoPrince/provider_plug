@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_application_2/screens/schedule_directions/widgets/here_map_controller.dart';
 import 'package:flutter_application_2/screens/schedule_directions/widgets/marker_loader.dart';
@@ -6,7 +7,7 @@ import 'package:flutter_application_2/screens/schedule_directions/widgets/naviga
 import 'package:flutter_application_2/screens/schedule_directions/widgets/travel_mode_buttons.dart'
     as travelBtn;
 import 'package:flutter_application_2/screens/schedule_directions/widgets/shipment_stauts_helper.dart';
-import 'package:geolocator/geolocator.dart';
+
 import 'package:here_sdk/core.dart';
 import 'package:here_sdk/mapview.dart';
 import 'package:here_sdk/routing.dart' as here;
@@ -14,7 +15,7 @@ import 'package:here_sdk/routing.dart' as here;
 class HereDestinationScreen extends StatefulWidget {
   final double destinationLat;
   final double destinationLng;
-   final int shipmentId;
+  final int shipmentId;
 
   const HereDestinationScreen({
     super.key,
@@ -32,6 +33,7 @@ class _HereDestinationScreenState extends State<HereDestinationScreen> {
   HereMapControllerHelper? _helper;
 
   TravelMode _selectedMode = TravelMode.car;
+  MapMarker? _userMarker;
 
   double? _distanceKm;
   int? _durationMin;
@@ -50,91 +52,129 @@ class _HereDestinationScreenState extends State<HereDestinationScreen> {
   void _onMapCreated(HereMapController controller) async {
     _mapController = controller;
     _helper = HereMapControllerHelper(
-    controller,
-    shipmentId: widget.shipmentId, // ✅ pass the required argument
-  );
+      controller,
+      shipmentId: widget.shipmentId, // ✅ pass the required argument
+    );
 
     // Load map scene
-    controller.mapScene.loadSceneForMapScheme(
-      MapScheme.normalDay,
-      (error) async {
-        if (error != null) {
-          print("Map scene load error: $error");
-          return;
-        }
-        print("Map scene loaded!");
+    controller.mapScene.loadSceneForMapScheme(MapScheme.normalDay, (
+      error,
+    ) async {
+      if (error != null) {
+        print("Map scene load error: $error");
+        return;
+      }
+      print("Map scene loaded!");
 
-        // Load marker images
-        _originImage ??= await MarkerLoader.loadMarker(
-          "assets/icons/map_icons/sp_marker.png",
-          96,
-        );
-        _destinationImage ??= await MarkerLoader.loadMarker(
-          "assets/icons/map_icons/client_marker.png",
-          96,
-        );
+      // Load marker images
+      _originImage ??= await MarkerLoader.loadMarker(
+        "assets/icons/map_icons/sp_marker.png",
+        96,
+      );
+      _destinationImage ??= await MarkerLoader.loadMarker(
+        "assets/icons/map_icons/client_marker.png",
+        96,
+      );
 
-        await _calculateRoute();
-      },
-    );
+      await _calculateRoute();
+    });
   }
 
-Future<void> _calculateRoute() async {
-  if (_helper == null) return;
-  setState(() => _isLoading = true);
 
-  final pos = await _helper!.getCurrentPosition();
-  final start = GeoCoordinates(pos.latitude, pos.longitude);
-  final dest = GeoCoordinates(widget.destinationLat, widget.destinationLng);
+void _zoomToRouteWithPadding(here.Route route) {
+  if (_mapController == null) return;
 
-  // Add or update markers
-  await _helper!.addOriginMarker(start, _originImage!);
-  await _helper!.addDestinationMarker(dest, _destinationImage!);
+  final bbox = route.boundingBox;
+  if (bbox == null) return;
 
-  // Route calculation
-  final waypoints = [here.Waypoint(start), here.Waypoint(dest)];
-  final routes = await _helper!.calculateRouteAsync(waypoints, _selectedMode);
+  // Choose how much padding you want around the route
+  const double padPixels = 150.0; // increase for more padding
 
-  if (routes.isEmpty) {
-    setState(() => _isLoading = false);
-    return;
-  }
+  final viewportSize = _mapController!.viewportSize;
 
-  _currentRoute = routes.first;
-  _helper!.drawRoute(_currentRoute!);
-  _helper!.zoomToRoute(_currentRoute!);
+  // Starting point for padded area
+  final origin = Point2D(padPixels, padPixels);
 
-  final distance = _currentRoute!.lengthInMeters / 1000;
-  final duration = _currentRoute!.duration.inSeconds ~/ 60;
+  // Calculate size so that padding applies all around
+  final sizeWithPadding = Size2D(
+    math.max(1, viewportSize.width - padPixels * 2),
+    math.max(1, viewportSize.height - padPixels * 2),
+  );
 
-  setState(() {
-    _distanceKm = distance;
-    _durationMin = duration;
-    _isLoading = false;
-  });
+  final viewRect = Rectangle2D(origin, sizeWithPadding);
+
+  // Use map update that accepts orientation + view rectangle for padding
+  final update = MapCameraUpdateFactory.lookAtAreaWithGeoOrientationAndViewRectangle(
+    bbox,
+    GeoOrientationUpdate(0, 0), // keep map upright
+    viewRect,
+  );
+
+  _mapController!.camera.applyUpdate(update);
 }
 
 
-  void _beginNavigation() async{
+
+  Future<void> _calculateRoute() async {
+    if (_helper == null) return;
+    setState(() => _isLoading = true);
+
+    final pos = await _helper!.getCurrentPosition();
+    final start = GeoCoordinates(pos.latitude, pos.longitude);
+    final dest = GeoCoordinates(widget.destinationLat, widget.destinationLng);
+
+    // Add or update markers
+    await _helper!.addOriginMarker(start, _originImage!);
+    await _helper!.addDestinationMarker(dest, _destinationImage!);
+
+    // Route calculation
+    final waypoints = [here.Waypoint(start), here.Waypoint(dest)];
+    final routes = await _helper!.calculateRouteAsync(waypoints, _selectedMode);
+
+    if (routes.isEmpty) {
+      setState(() => _isLoading = false);
+      return;
+    }
+
+    _currentRoute = routes.first;
+    _helper!.drawRoute(_currentRoute!);
+    
+    _zoomToRouteWithPadding(_currentRoute!);
+
+    final distance = _currentRoute!.lengthInMeters / 1000;
+    final duration = _currentRoute!.duration.inSeconds ~/ 60;
+
+    setState(() {
+      _distanceKm = distance;
+      _durationMin = duration;
+      _isLoading = false;
+    });
+  }
+
+  
+
+  void _beginNavigation() async {
     if (_currentRoute == null) return;
 
-    
- showDialog(
-    context: context,
-    barrierDismissible: false,
-    builder: (_) => const Center(child: CircularProgressIndicator()),
-  );
-
-  final started = await ShipmentStatusApi.updateStatus(widget.shipmentId, "in_transit");
-
-  Navigator.pop(context); 
-
-  if (!started) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Failed to start shipment")),
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
     );
-    return;
-  }
+
+    final started = await ShipmentStatusApi.updateStatus(
+      widget.shipmentId,
+      "in_transit",
+    );
+
+    Navigator.pop(context);
+
+    if (!started) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Failed to start shipment")));
+      return;
+    }
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -171,8 +211,7 @@ Future<void> _calculateRoute() async {
               ),
             ),
 
-            if (_isLoading)
-              const Center(child: CircularProgressIndicator()),
+            if (_isLoading) const Center(child: CircularProgressIndicator()),
 
             // Top card with distance and travel mode selector
             Positioned(
@@ -241,11 +280,20 @@ Future<void> _calculateRoute() async {
                   ),
                   FloatingActionButton(
                     heroTag: "my_location",
-                    onPressed: () async {
-                      if (_helper == null) return;
-                      final pos = await _helper!.getCurrentPosition();
-                      await _helper!.focusOnLocation(pos);
-                    },
+                   onPressed: () async {
+  if (_helper == null) return;
+  final pos = await _helper!.getCurrentPosition();
+
+  // Only move camera
+  final geo = GeoCoordinates(pos.latitude, pos.longitude);
+
+  _helper!.mapController.camera.lookAtPointWithGeoOrientationAndMeasure(
+    geo,
+    GeoOrientationUpdate(0, 50),
+    MapMeasure(MapMeasureKind.distanceInMeters, 700),
+  );
+},
+
                     child: const Icon(Icons.my_location),
                   ),
                 ],

@@ -3,7 +3,7 @@ import 'package:flutter_application_2/common/controller/bookings/session_locatio
 import 'package:flutter_application_2/common/services/confirm_session_api.dart';
 import 'package:flutter_application_2/common/services/session_by_shipment_api.dart';
 import 'package:flutter_application_2/common/utils/kcolors.dart';
-import 'package:flutter_application_2/screens/scan_session_qr_code/session_confirmation/views/session_confirmation_screen.dart';
+
 import 'package:flutter_application_2/screens/scan_session_qr_code/widgets/session_live_location_helper.dart';
 import 'package:flutter_application_2/screens/scan_session_qr_code/widgets/header_widget.dart';
 import 'package:flutter_application_2/screens/scan_session_qr_code/widgets/laser_overlay_widget.dart';

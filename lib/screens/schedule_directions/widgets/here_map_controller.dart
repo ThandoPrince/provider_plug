@@ -34,6 +34,7 @@ class HereMapControllerHelper {
 
   final int shipmentId;
   GeoCoordinates? _lastPostedCoordinates;
+  bool _creatingUserMarker = false;
 
    final double _minPostDistanceMeters;
 
@@ -63,17 +64,39 @@ class HereMapControllerHelper {
     );
   }
 
+  void clearUserMarker() {
+  if (_userMarker != null) {
+    mapController.mapScene.removeMapMarker(_userMarker!);
+    _userMarker = null;
+  }
+}
+
+
   Future<void> updateUserMarker(GeoCoordinates geo) async {
+  // Prevent parallel creation
+  if (_creatingUserMarker) {
+    _userMarker?.coordinates = geo;
+    return;
+  }
+
+  if (_userMarker == null) {
+    _creatingUserMarker = true;
+
     await _ensureUserMarker();
 
     if (_userMarker == null) {
       _userMarker = MapMarker(geo, _userArrowImage!)
         ..anchor = Anchor2D.withHorizontalAndVertical(0.5, 0.5);
+
       mapController.mapScene.addMapMarker(_userMarker!);
     }
 
-    _userMarker!.coordinates = geo;
+    _creatingUserMarker = false;
   }
+
+  _userMarker!.coordinates = geo;
+}
+
 
   Future<void> addOriginMarker(GeoCoordinates origin, MapImage originImage) async {
     _originMarker?.let(mapController.mapScene.removeMapMarker);
@@ -128,23 +151,31 @@ class HereMapControllerHelper {
   // LOCATION HELPERS
   // ---------------------------
   /// Get current device position
-  Future<Position> getCurrentPosition() async {
+  Future<Position>  getCurrentPosition() async {
     return await Geolocator.getCurrentPosition(
       desiredAccuracy: LocationAccuracy.bestForNavigation,
     );
   }
 
-  /// Move map camera to a given position, updating user marker
-  Future<void> focusOnLocation(Position pos) async {
-    final geo = GeoCoordinates(pos.latitude, pos.longitude);
-    await updateUserMarker(geo);
+  
 
-    mapController.camera.lookAtPointWithGeoOrientationAndMeasure(
-      geo,
-      GeoOrientationUpdate(0, 50),
-      MapMeasure(MapMeasureKind.distanceInMeters, 700),
-    );
-  }
+  /// Move map camera to a given position, updating user marker
+Future<void> focusOnLocation(Position pos) async {
+  final geo = GeoCoordinates(pos.latitude, pos.longitude);
+
+  // ✅ Remove old marker before focusing
+ 
+
+  await updateUserMarker(geo);
+
+  mapController.camera.lookAtPointWithGeoOrientationAndMeasure(
+    geo,
+    GeoOrientationUpdate(0, 50),
+    MapMeasure(MapMeasureKind.distanceInMeters, 700),
+  );
+}
+
+
 
   // ---------------------------
   // ROUTE CALCULATION
@@ -243,4 +274,7 @@ class HereMapControllerHelper {
   void dispose() {
     _positionSubscription?.cancel();
   }
+
+  
 }
+

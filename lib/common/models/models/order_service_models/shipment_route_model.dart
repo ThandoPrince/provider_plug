@@ -11,11 +11,13 @@ class ShipmentRoute {
   final bool recalculated;
   final bool? isActive;
   final DateTime? createdAt;
+   final String? travelMode; 
 
   ShipmentRoute({
     required this.routeId,
     required this.shipmentId,
     required this.originLat,
+    this.travelMode, 
     required this.originLng,
     required this.destinationLat,
     required this.destinationLng,
@@ -28,6 +30,7 @@ class ShipmentRoute {
   });
 
   factory ShipmentRoute.fromJson(Map<String, dynamic> json) {
+    
     int shipmentIdValue;
     if (json['shipment'] is int) {
       shipmentIdValue = json['shipment'] as int;
@@ -39,6 +42,7 @@ class ShipmentRoute {
 
     return ShipmentRoute(
       routeId: json['route_id'] as int,
+       travelMode: json['travel_mode'] as String?,
       shipmentId: shipmentIdValue,
       originLat: (json['origin_lat'] as num).toDouble(),
       originLng: (json['origin_lng'] as num).toDouble(),
@@ -52,7 +56,9 @@ class ShipmentRoute {
       createdAt: json['created_at'] != null
           ? DateTime.parse(json['created_at'] as String)
           : null,
+            
     );
+
   }
 
   Map<String, dynamic> toJson() {
@@ -69,6 +75,7 @@ class ShipmentRoute {
       "recalculated": recalculated,
       "is_active": isActive,
       "created_at": createdAt?.toIso8601String(),
+      if (travelMode != null) 'travel_mode': travelMode,
     };
   }
 }

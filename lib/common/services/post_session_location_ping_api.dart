@@ -18,6 +18,7 @@ class SessionLocationPingApi {
     required double latitude,
     required double longitude,
     double? accuracy,
+    String? travelMode,
   }) async {
     final uri = Uri.parse(
       '$_baseUrl/bookings/sessions/geofence_check/$sessionId/',
@@ -27,7 +28,10 @@ class SessionLocationPingApi {
       'latitude': latitude,
       'longitude': longitude,
       if (accuracy != null) 'accuracy': accuracy,
+      if (travelMode != null) 'travel_mode': travelMode,
     };
+
+
 
     final response = await http.post(
       uri,

@@ -41,4 +41,39 @@ class ShipmentRouteApi {
       );
     }
   }
+
+    /// Fetch routes for a shipment
+  static Future<List<ShipmentRoute>> getShipmentRoutes(int shipmentId) async {
+    final url = Uri.parse('$baseUrl/bookings/shipment/$shipmentId/route/');
+
+    if (kDebugMode) {
+      print("📡 GET ShipmentRoutes from $url");
+    }
+
+    final response = await http.get(
+      url,
+      headers: {
+        'Content-Type': 'application/json',
+        // 'Authorization': 'Bearer $token',
+      },
+    );
+
+    if (kDebugMode) {
+      print("📨 Response status: ${response.statusCode}");
+      print("📨 Response body: ${response.body}");
+    }
+
+    if (response.statusCode == 200) {
+      final List decoded = jsonDecode(response.body);
+
+      return decoded
+          .map((e) => ShipmentRoute.fromJson(e))
+          .toList();
+    } else {
+      throw Exception(
+        'Failed to fetch shipment routes. Status: ${response.statusCode}, Body: ${response.body}',
+      );
+    }
+  }
+
 }

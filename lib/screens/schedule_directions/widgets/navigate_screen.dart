@@ -2,8 +2,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_application_2/screens/scan_session_qr_code/views/session_initiation_qr_screen.dart';
+import 'package:flutter_application_2/screens/schedule_directions/widgets/geo_coordinates_to_position.dart';
 import 'package:flutter_application_2/screens/schedule_directions/widgets/shipment_stauts_helper.dart';
-import 'package:geolocator/geolocator.dart';
+
 import 'package:here_sdk/core.dart';
 import 'package:here_sdk/mapview.dart';
 import 'package:here_sdk/routing.dart' as here;
@@ -14,12 +15,16 @@ class NavigationScreen extends StatefulWidget {
   final here.Route route;
   final TravelMode travelMode;
   final int shipmentId;
+  final double? destinationLat;
+  final double? destinationLng;
 
   const NavigationScreen({
     super.key,
     required this.route,
     required this.travelMode,
     required this.shipmentId,
+    this.destinationLat,
+    this.destinationLng,
   });
 
   @override
@@ -27,9 +32,11 @@ class NavigationScreen extends StatefulWidget {
 }
 
 class _NavigationScreenState extends State<NavigationScreen> {
-  static const double _arrivalDistanceMeters = 30; // base
-  static const double _arrivalBufferMeters = 50;   // flexible, user-friendly
-  static const int _arrivalTimeBufferSeconds = 60; // 1 min threshold
+  DateTime? _lastRouteRecalc;
+  static const int _recalcCooldownSeconds = 10;
+  static const double _arrivalDistanceMeters = 30;
+  static const double _arrivalBufferMeters = 50;
+  static const int _arrivalTimeBufferSeconds = 60;
 
   HereMapControllerHelper? _helper;
   late here.Route _currentRoute;
@@ -38,6 +45,34 @@ class _NavigationScreenState extends State<NavigationScreen> {
   int _currentStep = 0;
   bool _hasArrived = false;
 
+  here.Route _getRemainingRoute(GeoCoordinates userGeo, here.Route fullRoute) {
+    final remainingSections = <here.Section>[];
+    bool passedUser = false;
+
+    for (var section in fullRoute.sections) {
+      final newManeuvers = <here.Maneuver>[];
+
+      for (var m in section.maneuvers) {
+        final distanceToUser = userGeo.distanceTo(m.coordinates);
+        if (!passedUser && distanceToUser < 20) {
+          passedUser = true; // start collecting maneuvers after user
+          continue;
+        }
+        if (passedUser) newManeuvers.add(m);
+      }
+
+      if (newManeuvers.isNotEmpty) {
+        // we cannot instantiate here.Section or here.Route directly (abstract),
+        // so reuse the original section instances that remain after the user.
+        remainingSections.add(section);
+      }
+    }
+
+    // Return the original fullRoute if we cannot construct a new concrete Route.
+    // Keep using fullRoute so we avoid instantiating abstract here.Route.
+    return fullRoute;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -45,192 +80,246 @@ class _NavigationScreenState extends State<NavigationScreen> {
     _maneuvers = _currentRoute.sections.expand((s) => s.maneuvers).toList();
   }
 
+  // -------------------- MAP SETUP --------------------
   void _onMapCreated(HereMapController controller) async {
     _helper = HereMapControllerHelper(
-  controller,
-  shipmentId: widget.shipmentId,
-);
-
-    controller.mapScene.loadSceneForMapScheme(
-      MapScheme.normalDay,
-      (error) async {
-        if (error != null) return;
-
-        _helper!
-          ..drawRoute(_currentRoute)
-          ..zoomToRoute(_currentRoute);
-
-        final destination =
-            _currentRoute.sections.last.arrivalPlace.mapMatchedCoordinates;
-
-        await _helper!.addDestinationMarker(
-          destination,
-          await MapImage.withFilePathAndWidthAndHeight(
-            "assets/icons/map_icons/client_marker.png",
-            96,
-            96,
-          ),
-        );
-
-        _helper!.startNavigationTracking(
-          route: _currentRoute,
-          mode: widget.travelMode,
-          onUpdate: _onNavigationUpdate,
-        );
-      },
+      controller,
+      shipmentId: widget.shipmentId,
     );
+
+    controller.mapScene.loadSceneForMapScheme(MapScheme.normalDay, (
+      error,
+    ) async {
+      if (error != null) return;
+
+      await _initializeMap();
+    });
   }
 
-  void _onNavigationUpdate(GeoCoordinates userGeo, double bearing, here.Route updatedRoute) {
+  Future<void> _initializeMap() async {
+    if (_helper == null) return;
+
+    final destination =
+        _currentRoute.sections.last.arrivalPlace.mapMatchedCoordinates;
+
+    await _helper!
+      ..drawRoute(_currentRoute)
+      ..zoomToRoute(_currentRoute)
+      ..addDestinationMarker(
+        destination,
+        await MapImage.withFilePathAndWidthAndHeight(
+          "assets/icons/map_icons/client_marker.png",
+          96,
+          96,
+        ),
+      )
+      ..startNavigationTracking(
+        route: _currentRoute,
+        mode: widget.travelMode,
+        onUpdate: _handleNavigationUpdate,
+      );
+  }
+
+  Future<void> _handleNavigationUpdate(
+    GeoCoordinates userGeo,
+    double bearing,
+    here.Route currentRoute,
+  ) async {
     if (_hasArrived) return;
 
-    setState(() {
-      _currentRoute = updatedRoute;
-      _maneuvers = updatedRoute.sections.expand((s) => s.maneuvers).toList();
-    });
+    // Check off-route with cooldown
+    final now = DateTime.now();
+    if (_helper!.isOffRoute(userGeo, _currentRoute) &&
+        (_lastRouteRecalc == null ||
+            now.difference(_lastRouteRecalc!).inSeconds >
+                _recalcCooldownSeconds)) {
+      _lastRouteRecalc = now;
 
-    // Update next maneuver
+      final destination =
+          _currentRoute.sections.last.arrivalPlace.mapMatchedCoordinates;
+
+      final newRoutes = await _helper!.calculateRouteAsync([
+        here.Waypoint(userGeo),
+        here.Waypoint(destination),
+      ], widget.travelMode);
+
+      if (newRoutes.isNotEmpty) {
+        _currentRoute = newRoutes.first;
+
+        // Center and zoom to the new route using helper
+        _helper!.zoomToRoute(_currentRoute);
+      }
+    }
+
+    // Continue normal update
+    _onNavigationUpdate(userGeo, bearing, _currentRoute);
+  }
+
+  // -------------------- NAVIGATION UPDATE --------------------
+void _onNavigationUpdate(
+  GeoCoordinates userGeo,
+  double bearing,
+  here.Route updatedRoute,
+) async {
+  if (_hasArrived) return;
+
+  setState(() {
+    _currentRoute = updatedRoute;
+    _maneuvers = updatedRoute.sections.expand((s) => s.maneuvers).toList();
+  });
+
+  _updateCurrentStep(userGeo);
+  _checkArrival(userGeo, updatedRoute);
+
+  final destination =
+      updatedRoute.sections.last.arrivalPlace.mapMatchedCoordinates;
+
+  final routes = await _helper!.calculateRouteAsync(
+    [here.Waypoint(userGeo), here.Waypoint(destination)],
+    widget.travelMode,
+  );
+
+  if (routes.isNotEmpty) {
+    _currentRoute = routes.first;
+    _helper!
+      ..drawRoute(_currentRoute!)
+      ..focusOnLocation(positionFromGeo(userGeo));
+  }
+}
+
+
+  void _updateCurrentStep(GeoCoordinates userGeo) {
     for (int i = 0; i < _maneuvers.length; i++) {
       if (userGeo.distanceTo(_maneuvers[i].coordinates) < 20) {
         _currentStep = i;
         break;
       }
     }
+  }
 
-    final destination = updatedRoute.sections.last.arrivalPlace.mapMatchedCoordinates;
+  void _checkArrival(GeoCoordinates userGeo, here.Route route) {
+    final destination = route.sections.last.arrivalPlace.mapMatchedCoordinates;
     final distanceRemaining = userGeo.distanceTo(destination);
-    final timeRemaining = updatedRoute.duration.inSeconds;
+    final timeRemaining = route.duration.inSeconds;
 
-    // ✅ Arrival detection with buffer
     if (distanceRemaining <= (_arrivalDistanceMeters + _arrivalBufferMeters) ||
         timeRemaining <= _arrivalTimeBufferSeconds) {
       if (!_hasArrived) {
         setState(() => _hasArrived = true);
         HapticFeedback.mediumImpact();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("You have arrived")),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text("You have arrived")));
       }
-      return;
     }
-
-    _helper!
-      ..drawRoute(updatedRoute)
-      ..zoomToRoute(updatedRoute);
   }
 
   Future<void> _markArrived() async {
-  // 1️⃣ Show loader
-  showDialog(
-    context: context,
-    barrierDismissible: false,
-    builder: (_) => const Center(child: CircularProgressIndicator()),
-  );
-
-  // 2️⃣ Call API
-  final success = await ShipmentStatusApi.updateStatus(
-    widget.shipmentId,
-    "arrived",
-  );
-
-  // 3️⃣ Close loader FIRST
-  Navigator.pop(context);
-
-  // 4️⃣ Handle failure
-  if (!success) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Failed to update shipment status")),
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
     );
-    return;
-  }
 
-  // 5️⃣ Navigate to QR scanner
-  Navigator.pushReplacement(
-    context,
-    MaterialPageRoute(
-      builder: (_) => SessionInitiationQrScreen(
-        shipmentId: widget.shipmentId,
+    final success = await ShipmentStatusApi.updateStatus(
+      widget.shipmentId,
+      "arrived",
+    );
+
+    Navigator.pop(context); // close loader
+
+    if (!success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Failed to update shipment status")),
+      );
+      return;
+    }
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) =>
+            SessionInitiationQrScreen(shipmentId: widget.shipmentId),
       ),
-    ),
-  );
-}
-
-
-
-
-  @override
-  void dispose() {
-    _helper?.dispose();
-    super.dispose();
+    );
   }
 
-  // ------------------------------------------------------------
-  // UI
-  // ------------------------------------------------------------
+  // -------------------- UI --------------------
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Stack(
         children: [
           HereMap(onMapCreated: _onMapCreated),
-
-          /// TOP MANEUVER
-          Positioned(
-            top: 40,
-            left: 16,
-            right: 16,
-            child: Card(
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Text(
-                  _maneuvers.isNotEmpty ? _maneuvers[_currentStep].text : "Continue",
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: _currentStep == _maneuvers.length - 1 ? Colors.red : Colors.black,
-                  ),
-                ),
-              ),
-            ),
-          ),
-
-          /// BOTTOM STATUS
-          Positioned(
-            bottom: 24,
-            left: 16,
-            right: 16,
-            child: Card(
-              child: Padding(
-                padding: const EdgeInsets.all(14),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    _buildDistanceText(),
-                    _buildTimeText(),
-                    _hasArrived
-    ? ElevatedButton(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.green,
-        ),
-        onPressed: _markArrived,
-        child: const Text("Arrived"),
-      )
-    : const SizedBox.shrink(),
-
-                  ],
-                ),
-              ),
-            ),
-          ),
+          _buildManeuverCard(),
+          _buildBottomStatusCard(),
         ],
       ),
     );
   }
 
+  Widget _buildManeuverCard() {
+    final maneuverText = _maneuvers.isNotEmpty
+        ? _maneuvers[_currentStep].text
+        : "Continue";
 
+    return Positioned(
+      top: 40,
+      left: 16,
+      right: 16,
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Text(
+            maneuverText,
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: _currentStep == _maneuvers.length - 1
+                  ? Colors.red
+                  : Colors.black,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBottomStatusCard() {
+    return Positioned(
+      bottom: 24,
+      left: 16,
+      right: 16,
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _buildDistanceText(),
+              _buildTimeText(),
+              _hasArrived
+                  ? ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                      ),
+                      onPressed: _markArrived,
+                      child: const Text("Arrived"),
+                    )
+                  : const SizedBox.shrink(),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   Widget _buildDistanceText() {
-    final destination = _currentRoute.sections.last.arrivalPlace.mapMatchedCoordinates;
-    final distanceMeters = _helper?.userCoordinates?.distanceTo(destination) ?? _currentRoute.lengthInMeters;
+    final destination =
+        _currentRoute.sections.last.arrivalPlace.mapMatchedCoordinates;
+    final distanceMeters =
+        _helper?.userCoordinates?.distanceTo(destination) ??
+        _currentRoute.lengthInMeters;
+
     if (distanceMeters < 950) return Text("${distanceMeters.round()} m");
     return Text("${(distanceMeters / 1000).toStringAsFixed(1)} km");
   }
@@ -238,7 +327,14 @@ class _NavigationScreenState extends State<NavigationScreen> {
   Widget _buildTimeText() {
     final remainingSeconds = _currentRoute.duration.inSeconds;
     if (remainingSeconds < 50) return Text("$remainingSeconds sec");
+
     final minutes = (remainingSeconds / 60).round();
     return Text("$minutes min");
+  }
+
+  @override
+  void dispose() {
+    _helper?.dispose();
+    super.dispose();
   }
 }

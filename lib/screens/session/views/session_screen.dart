@@ -75,6 +75,7 @@ class _SessionScreenState extends State<SessionScreen> {
         latitude: position.latitude,
         longitude: position.longitude,
         accuracy: position.accuracy,
+        
       );
 
       // Optional: print for debug

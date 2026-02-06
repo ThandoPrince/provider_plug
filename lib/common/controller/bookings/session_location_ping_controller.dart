@@ -27,6 +27,7 @@ class SessionLocationPingController extends ChangeNotifier {
     required double latitude,
     required double longitude,
     double? accuracy,
+    
   }) async {
     _setState(PingPostState.posting);
 
@@ -36,6 +37,8 @@ class SessionLocationPingController extends ChangeNotifier {
         latitude: latitude,
         longitude: longitude,
         accuracy: accuracy,
+       
+
       );
 
       _lastPing = ping;
