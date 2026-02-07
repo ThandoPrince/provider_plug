@@ -2,12 +2,13 @@ import 'package:flutter_application_2/common/models/models/order_service_models/
 
 class SessionModel {
   final int? sessionId;
-  final int? shipmentId; 
-  final Shipment? shipment; 
+  final int? shipmentId;
+  final Shipment? shipment;
   final DateTime? checkinTime;
   final Map<String, dynamic>? checkinLocation;
   final DateTime? checkoutTime;
   final Map<String, dynamic>? checkoutLocation;
+  final int? durationSeconds; // <-- NEW FIELD
 
   SessionModel({
     this.sessionId,
@@ -17,6 +18,7 @@ class SessionModel {
     this.checkinLocation,
     this.checkoutTime,
     this.checkoutLocation,
+    this.durationSeconds,
   });
 
   factory SessionModel.fromJson(Map<String, dynamic> json) {
@@ -34,6 +36,9 @@ class SessionModel {
           ? DateTime.tryParse(json['checkout_time'])
           : null,
       checkoutLocation: json['checkout_location'],
+      durationSeconds: json['duration_seconds'] != null
+          ? (json['duration_seconds'] as num).toInt()
+          : null,
     );
   }
 
@@ -45,6 +50,7 @@ class SessionModel {
       'checkin_location': checkinLocation,
       'checkout_time': checkoutTime?.toIso8601String(),
       'checkout_location': checkoutLocation,
+      'duration_seconds': durationSeconds,
     };
   }
 }

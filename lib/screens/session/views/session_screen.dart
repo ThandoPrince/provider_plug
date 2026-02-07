@@ -1,18 +1,24 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_application_2/common/models/models/order_service_models/session_model.dart';
 import 'package:flutter_application_2/common/controller/bookings/session_location_ping_controller.dart';
 import 'package:flutter_application_2/common/controller/bookings/session_status_controller.dart';
-import 'package:flutter_application_2/common/models/models/order_service_models/session_model.dart';
-import 'package:flutter_application_2/common/models/models/order_service_models/shipment_model.dart';
-import 'package:flutter_application_2/common/utils/kcolors.dart';
+import 'package:flutter_application_2/common/services/session_by_shipment_api.dart';
+import 'package:flutter_application_2/screens/scheduled_services_details/widgets/schedule_flushbar_widget.dart';
+import 'package:flutter_application_2/screens/session/widgets/client_profile_row.dart';
+import 'package:flutter_application_2/screens/session/widgets/session_components.dart';
+import 'package:flutter_application_2/screens/session/widgets/session_helpers.dart';
 import 'package:flutter_application_2/screens/ratings_screen/views/ratings_screen.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_application_2/common/utils/kcolors.dart';
 
 class SessionScreen extends StatefulWidget {
   final SessionModel session;
+  final Position? initialLocation; // First location ping
 
-  const SessionScreen({super.key, required this.session});
+  const SessionScreen({super.key, required this.session, this.initialLocation});
 
   @override
   State<SessionScreen> createState() => _SessionScreenState();
@@ -21,69 +27,113 @@ class SessionScreen extends StatefulWidget {
 class _SessionScreenState extends State<SessionScreen> {
   late Timer _timer;
   Timer? _pingTimer;
-  Duration _elapsed = Duration.zero;
+  Timer? _pollTimer;
+  late Duration _elapsed;
+
+  bool get isCompleted => widget.session.checkoutTime != null;
 
   @override
   void initState() {
     super.initState();
+    _elapsed = Duration(seconds: widget.session.durationSeconds ?? 0);
 
-    // Initialize elapsed time
-    _elapsed = Duration(
-      seconds: widget.session.checkinTime != null
-          ? DateTime.now().difference(widget.session.checkinTime!).inSeconds
-          : 0,
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+  if (!mounted) return;
+
+  final controller = context.read<SessionLocationPingController>();
+
+  if (widget.initialLocation != null) {
+    controller.postPing(
+      sessionId: widget.session.sessionId!,
+      latitude: widget.initialLocation!.latitude,
+      longitude: widget.initialLocation!.longitude,
+      accuracy: widget.initialLocation!.accuracy,
+      session: widget.session,
+      siteLatitude: widget.session.shipment?.serviceOrdered?.order?.deliveryAddress?.latitude ?? 0,
+      siteLongitude: widget.session.shipment?.serviceOrdered?.order?.deliveryAddress?.longitude ?? 0,
     );
+  }
+});
 
-    // Start session timer
-    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) setState(() => _elapsed += const Duration(seconds: 1));
-    });
 
-    // Start posting location pings
-    _startLocationPings();
+    if (!isCompleted) {
+      // Local timer for smooth seconds
+      _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (mounted) setState(() => _elapsed += const Duration(seconds: 1));
+      });
+
+      // Ping every 20 seconds
+      _pingTimer = Timer.periodic(const Duration(seconds: 20), (_) => _sendPing());
+
+      // Poll backend every 20s
+      _pollTimer = Timer.periodic(const Duration(seconds: 20), (_) => _pollSession());
+    }
   }
 
-  Future<void> _startLocationPings() async {
-    LocationPermission permission = await Geolocator.checkPermission();
+  /// Simple cleanup to stop all timers at once
+void _stopAllTimers() {
+  _pingTimer?.cancel();
+  _timer.cancel();
+  _pollTimer?.cancel();
+}
 
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
+/// A professional loading overlay so the user knows the app is "thinking"
+void _showLoadingOverlay() {
+  showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (context) => const Center(
+      child: CircularProgressIndicator(
+        color: Kolors.kPrimary,
+        strokeWidth: 3,
+      ),
+    ),
+  );
+}
+
+
+
+
+
+
+  Future<void> _pollSession() async {
+    final shipmentId = widget.session.shipmentId;
+    if (shipmentId == null) return;
+
+    try {
+      final updatedSession = await SessionApi.getSessionByShipment(shipmentId.toString());
+      if (!mounted) return;
+
+      final backendDuration = Duration(seconds: updatedSession.durationSeconds ?? 0);
+      if ((backendDuration - _elapsed).inSeconds.abs() > 2) {
+        setState(() => _elapsed = backendDuration);
+      }
+    } catch (e) {
+      debugPrint("📡 Polling session failed: $e");
     }
-
-    if (permission == LocationPermission.denied ||
-        permission == LocationPermission.deniedForever) {
-      debugPrint("📍 Location permission denied");
-      return; // Stop if no permission
-    }
-
-    _pingTimer = Timer.periodic(
-      const Duration(seconds: 20),
-      (_) => _sendPing(),
-    );
   }
 
   Future<void> _sendPing() async {
     try {
-      final position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-      );
+      final pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+      if (!mounted) return;
 
-      final controller = context.read<SessionLocationPingController>();
+final controller = Provider.of<SessionLocationPingController>(
+  context,
+  listen: false,
+);
 
       await controller.postPing(
         sessionId: widget.session.sessionId!,
-        latitude: position.latitude,
-        longitude: position.longitude,
-        accuracy: position.accuracy,
-        
-      );
-
-      // Optional: print for debug
-      debugPrint(
-        "📍 Ping sent | Inside geofence: ${controller.isInsideGeofence} | Distance: ${controller.distanceMeters?.toStringAsFixed(2)}m",
+        latitude: pos.latitude,
+        longitude: pos.longitude,
+        accuracy: pos.accuracy,
+        session: widget.session,
+        siteLatitude: widget.session.shipment?.serviceOrdered?.order?.deliveryAddress?.latitude ?? 0,
+        siteLongitude: widget.session.shipment?.serviceOrdered?.order?.deliveryAddress?.longitude ?? 0,
       );
     } catch (e) {
-      debugPrint("📍 Location ping failed: $e");
+      debugPrint("📍 Ping failed: $e");
     }
   }
 
@@ -91,313 +141,245 @@ class _SessionScreenState extends State<SessionScreen> {
   void dispose() {
     _timer.cancel();
     _pingTimer?.cancel();
+    _pollTimer?.cancel();
     super.dispose();
-  }
-
-  String formatDuration(Duration d) {
-    final h = d.inHours.toString().padLeft(2, '0');
-    final m = (d.inMinutes % 60).toString().padLeft(2, '0');
-    final s = (d.inSeconds % 60).toString().padLeft(2, '0');
-    return "$h:$m:$s";
   }
 
   @override
   Widget build(BuildContext context) {
-    final session = widget.session;
-    final shipment = session.shipment;
-
-    return WillPopScope(
-      onWillPop: () async {
-        _pingTimer?.cancel();
-        _timer.cancel();
-        Navigator.pop(context, false);
-        return false;
-      },
-      child: Scaffold(
-        backgroundColor: const Color(0xFFF8F9FA),
-        appBar: AppBar(
-          title: const Text("Active Session",
-              style: TextStyle(fontWeight: FontWeight.w900)),
-          centerTitle: true,
-          backgroundColor: Kolors.kPrimary,
-          foregroundColor: Colors.white,
-          elevation: 0,
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.help_outline),
-              onPressed: () {},
-            )
-          ],
-        ),
-        body: shipment == null
-            ? const Center(child: Text("No shipment data available"))
-            : Column(
+    return Scaffold(
+      backgroundColor: const Color(0xFFFBFBFE),
+      appBar: AppBar(
+        title: const Text("Current Session",
+            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
+        centerTitle: true,
+        backgroundColor: Kolors.kPrimary,
+        foregroundColor: Colors.white,
+        elevation: 0,
+      ),
+      body: Column(
+        children: [
+          SessionTimerHeader(elapsed: _elapsed),
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: Column(
                 children: [
-                  // Timer Hero Section
-                  _buildTimerHeader(),
+                  SessionInfoCard(
+                    title: "Service Details",
+                    children: [
+                      SessionHelpers.buildDataRow(
+                          Icons.fingerprint, "Session ID", "#${widget.session.sessionId}"),
+                      const Divider(height: 24, color: Kolors.kOffWhite),
+                      SessionHelpers.buildDataRow(
+                          Icons.local_shipping_outlined, "Shipment ID", "#${widget.session.shipment?.shipmentId}"),
+                          const Divider(height: 24, color: Kolors.kOffWhite),
+                          SessionHelpers.buildDataRow(
+  Icons.calendar_today_outlined,
+  "Check-in Time",
+  widget.session.checkinTime != null
+      ? DateFormat("dd MMM yyyy-HH:mm").format(
+          DateTime.parse(widget.session.checkinTime.toString()).toLocal(),
+        )
+      : "-",
+),
+const Divider(height: 24, color: Kolors.kOffWhite),
+SessionHelpers.buildDataRow(
+  Icons.handyman_outlined,
+  "Service Performed",
+  widget.session.shipment?.serviceOrdered?.order?.serviceRequired?.serviceName ?? "-",)
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  if (widget.session.shipment?.serviceOrdered?.order?.client != null)
+                    SessionInfoCard(
+                      title: "Client Information",
+                      children: [
+                        ClientProfileRow(
+  name:
+      "${widget.session.shipment!.serviceOrdered!.order!.client!.firstName} "
+      "${widget.session.shipment!.serviceOrdered!.order!.client!.lastName}",
+  imageUrl: widget.session.shipment
+      ?.serviceOrdered?.order?.client?.profileImageUrl,
+  rating: double.tryParse(
+  widget.session.shipment
+      ?.serviceOrdered?.order?.client?.rating ?? '',
+),
+),
 
-                  // Scrollable Details
-                  Expanded(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildSectionTitle("Service Details"),
-                          _buildShipmentCard(shipment),
-                          const SizedBox(height: 24),
-                          _buildSectionTitle("Client Information"),
-                          _buildClientCard(shipment),
-                          const SizedBox(height: 24),
-                          _buildGeofenceStatus(),
-                          const SizedBox(height: 24),
 
-                          
-                          SizedBox(
-                            width: double.infinity,
-                            height: 55,
-                            child: ElevatedButton(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.redAccent,
-                                foregroundColor: Colors.white,
-                                shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(16)),
-                                elevation: 0,
-                              ),
-                              onPressed: () async {
-  try {
-    final position = await Geolocator.getCurrentPosition(
-      desiredAccuracy: LocationAccuracy.high,
-    );
-
-    final controller = context.read<SessionStatusController>();
-
-    final success = await controller.endSession(
-      status: 'completed',
-      sessionId: widget.session.sessionId!,
-      latitude: position.latitude,
-      longitude: position.longitude,
-      accuracy: position.accuracy,
-    );
-
-    if (success) {
-      _pingTimer?.cancel();
-      _timer.cancel();
-
-      // ✅ Navigate to RatingsScreen
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) => RatingsScreen(
-            providerEmail: widget.session.shipment?.serviceOrdered?.order?.providerForService?.provider?.spProfile?.emailAddress ?? "",
-            sessionId: widget.session.sessionId,
+                        
+                      ],
+                    ),
+                  const SizedBox(height: 40),
+                  if (!isCompleted)
+                    SizedBox(
+                      width: double.infinity,
+                      height: 60,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.redAccent,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                          elevation: 0,
+                        ),
+                        onPressed: _handleEndSession,
+                        child: const Text("END SESSION",
+                            style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.2)),
+                      ),
+                    ),
+                ],
+              ),
+            ),
           ),
-        ),
-      );
-    }
-  } catch (e) {
-    debugPrint("❌ Failed to end session: $e");
+        ],
+      ),
+    );
   }
-},
 
-
-                              child: const Text("END SESSION",
-                                  style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16)),
-                            ),
-                          ),
-                        ],
+  Future<void> _handleEndSession() async {
+  // --- STEP 1: Custom Confirmation Dialog ---
+  final bool? confirm = await showDialog<bool>(
+    context: context,
+    barrierDismissible: false,
+    builder: (context) {
+      return Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+        elevation: 0,
+        backgroundColor: Colors.transparent,
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(28),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Icon Header
+              Container(
+                height: 60,
+                width: 60,
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.logout_rounded, color: Colors.redAccent, size: 30),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                "End Session?",
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                  color: Kolors.kDark,
+                  letterSpacing: -0.5,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                "Are you sure you want to finish this session? This will finalize the service and notify the client.",
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Kolors.kDark.withOpacity(0.6),
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 24),
+              
+              // Action Buttons
+              Row(
+                children: [
+                  Expanded(
+                    child: TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
+                      child: Text(
+                        "CANCEL",
+                        style: TextStyle(
+                          color: Colors.grey.shade600,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.1,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.redAccent,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
+                      child: const Text(
+                        "END NOW",
+                        style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.1),
                       ),
                     ),
                   ),
                 ],
               ),
-      ),
-    );
-  }
+            ],
+          ),
+        ),
+      );
+    },
+  );
 
-  // Timer Header
-  Widget _buildTimerHeader() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 30),
-      decoration: const BoxDecoration(
-        color: Kolors.kPrimary,
-        borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
-      ),
-      child: Column(
-        children: [
-          const Text(
-            "TOTAL ELAPSED TIME",
-            style: TextStyle(
-                color: Colors.white70,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 1.2,
-                fontSize: 12),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            formatDuration(_elapsed),
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 54,
-              fontWeight: FontWeight.w300,
-              fontFamily: 'Courier',
-            ),
-          ),
-          const SizedBox(height: 12),
-          Consumer<SessionLocationPingController>(
-            builder: (_, controller, __) {
-              final inside = controller.isInsideGeofence;
-              final distance = controller.distanceMeters?.toStringAsFixed(2) ?? "-";
-              return Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.fiber_manual_record,
-                        color: inside ? Colors.greenAccent : Colors.redAccent,
-                        size: 12),
-                    const SizedBox(width: 8),
-                    Text(
-                      inside
-                          ? "Inside Geofence ($distance m)"
-                          : "Outside Geofence ($distance m)",
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold),
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
+  if (confirm != true) return;
 
-  Widget _buildGeofenceStatus() {
-    return Consumer<SessionLocationPingController>(
-  builder: (_, controller, __) {
-    final inside = controller.isInsideGeofence;
-    final distance = controller.distanceMeters != null
-    ? controller.distanceMeters!.toStringAsFixed(2)
-    : "-";
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.2),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.fiber_manual_record,
-              color: inside ? Colors.greenAccent : Colors.redAccent,
-              size: 12),
-          const SizedBox(width: 8),
-          Text(
-            inside
-                ? "Inside Geofence ($distance m)"
-                : "Outside Geofence ($distance m)",
-            style: const TextStyle(
-                color: Colors.white,
-                fontSize: 12,
-                fontWeight: FontWeight.bold),
-          ),
-        ],
-      ),
+  // --- STEP 2: Logic with Loading State ---
+  _showLoadingOverlay(); // Implementation below
+
+  try {
+    final pos = await Geolocator.getCurrentPosition(
+      desiredAccuracy: LocationAccuracy.high,
     );
-  },
+
+    final success = await context.read<SessionStatusController>().endSession(
+          status: 'completed',
+          sessionId: widget.session.sessionId!,
+          latitude: pos.latitude,
+          longitude: pos.longitude,
+          accuracy: pos.accuracy,
+        );
+
+    if (success && mounted) {
+      _stopAllTimers(); // Cleanup helper
+      
+      // Navigate to ratings
+      Navigator.of(context).pop(); // Remove loading overlay
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => RatingsScreen(
+            providerEmail: widget.session.shipment?.serviceOrdered?.order
+                    ?.providerForService?.provider?.spProfile?.emailAddress ?? "",
+            sessionId: widget.session.sessionId,
+            session: widget.session, 
+          ),
+        ),
+      );
+    } else {
+       Navigator.of(context).pop(); // Remove loading overlay
+       await ScheduleFlushbar.error(
+  context,
+  "Failed to end session. Please try again.",
 );
 
-  }
 
-  Widget _buildSectionTitle(String title) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 4, bottom: 12),
-      child: Text(
-        title.toUpperCase(),
-        style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w900,
-            color: Colors.grey.shade600,
-            letterSpacing: 1),
-      ),
-    );
+    }
+  } catch (e) {
+    Navigator.of(context).pop(); // Remove loading overlay
+    debugPrint("❌ End session failed: $e");
   }
-
-  Widget _buildShipmentCard(Shipment shipment) {
-    return _infoContainer(
-      child: Column(
-        children: [
-          _dataRow(Icons.fingerprint, "Session ID", "#${widget.session.sessionId}"),
-          const Divider(height: 24),
-          _dataRow(Icons.local_shipping_outlined, "Shipment ID", "#${shipment.shipmentId}"),
-          const SizedBox(height: 12),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildClientCard(Shipment shipment) {
-    final client = shipment.serviceOrdered?.order?.client;
-    if (client == null) return const Text("No Client Info");
-
-    return _infoContainer(
-      child: Column(
-        children: [
-          _dataRow(Icons.person_outline, "Name",
-              "${client.firstName} ${client.lastName}"),
-          const SizedBox(height: 12),
-          _dataRow(Icons.email_outlined, "Email",
-              client.clientProfile?.emailAddress ?? 'N/A'),
-          const SizedBox(height: 12),
-          _dataRow(Icons.phone_android, "Mobile",
-              client.clientProfile?.mobileNumber ?? 'N/A'),
-        ],
-      ),
-    );
-  }
-
-  Widget _infoContainer({required Widget child}) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black.withOpacity(0.03),
-              blurRadius: 10,
-              offset: const Offset(0, 4)),
-        ],
-      ),
-      child: child,
-    );
-  }
-
-  Widget _dataRow(IconData icon, String label, String value) {
-    return Row(
-      children: [
-        Icon(icon, size: 20, color: Kolors.kPrimary),
-        const SizedBox(width: 12),
-        Text(label,
-            style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.w500)),
-        const Spacer(),
-        Text(value,
-            style: const TextStyle(
-                fontWeight: FontWeight.bold, color: Color(0xFF263238))),
-      ],
-    );
-  }
+}
 }

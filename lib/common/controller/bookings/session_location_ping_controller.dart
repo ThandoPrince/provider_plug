@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:flutter_application_2/common/models/models/order_service_models/session_location_ping_model.dart';
+import 'package:flutter_application_2/common/models/models/order_service_models/session_model.dart';
 import '../../services/post_session_location_ping_api.dart';
 
 enum PingPostState {
@@ -10,6 +12,7 @@ enum PingPostState {
 }
 
 class SessionLocationPingController extends ChangeNotifier {
+  /* ---------------- State ---------------- */
   PingPostState _state = PingPostState.idle;
   PingPostState get state => _state;
 
@@ -20,28 +23,53 @@ class SessionLocationPingController extends ChangeNotifier {
 
   bool get isPosting => _state == PingPostState.posting;
 
+  /* ---------------- Geofence Config (Static) ---------------- */
+  static const double geofenceRadius = 50; // meters
+ // replace with actual
+
   /* ---------------- Public API ---------------- */
 
+  /// Post a ping and update UI immediately
   Future<void> postPing({
     required int sessionId,
     required double latitude,
     required double longitude,
     double? accuracy,
-    
+    SessionModel? session,
+    required double siteLatitude,
+    required double siteLongitude,
   }) async {
     _setState(PingPostState.posting);
 
+    // 1️⃣ Compute distance locally for immediate UI feedback
+    final distance = Geolocator.distanceBetween(
+  latitude,
+  longitude,
+  siteLatitude,
+  siteLongitude,
+);
+    final inside = distance <= geofenceRadius;
+
+    // 2️⃣ Update lastPing immediately for live UI
+    _lastPing = SessionLocationPingModel(
+      session: session,
+      latitude: latitude,
+      longitude: longitude,
+      accuracy: accuracy,
+      distanceFromSiteMeters: distance,
+      insideGeofence: inside,
+      createdAt: DateTime.now(),
+    );
+    notifyListeners();
+
+    // 3️⃣ Post to backend asynchronously
     try {
-      final ping = await SessionLocationPingApi.postPing(
+      await SessionLocationPingApi.postPing(
         sessionId: sessionId,
         latitude: latitude,
         longitude: longitude,
         accuracy: accuracy,
-       
-
       );
-
-      _lastPing = ping;
       _setState(PingPostState.success);
     } catch (e, stack) {
       errorMessage = e.toString();
@@ -57,14 +85,11 @@ class SessionLocationPingController extends ChangeNotifier {
 
   /* ---------------- Derived UI helpers ---------------- */
 
-  bool get isInsideGeofence =>
-      _lastPing?.insideGeofence ?? true;
+  bool get isInsideGeofence => _lastPing?.insideGeofence ?? false;
+  bool get isOutsideGeofence => !isInsideGeofence;
 
-  double? get distanceMeters =>
-      _lastPing?.distanceFromSiteMeters;
-
-  DateTime? get lastPingTime =>
-      _lastPing?.createdAt;
+  double? get distanceMeters => _lastPing?.distanceFromSiteMeters;
+  DateTime? get lastPingTime => _lastPing?.createdAt;
 
   /* ---------------- Internal ---------------- */
 

@@ -1,16 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_application_2/common/controller/bookings/update_ratings_controller.dart';
+import 'package:flutter_application_2/common/models/models/order_service_models/session_model.dart';
 import 'package:flutter_application_2/common/utils/kcolors.dart';
 import 'package:flutter_application_2/screens/entryPoint/controller/bottom_tab_notifier.dart';
 import 'package:flutter_application_2/screens/entryPoint/views/entry_point.dart';
-import 'package:flutter_application_2/screens/scheduled_services/views/scheduled_services_screen.dart';
 import 'package:provider/provider.dart';
 
 class RatingsScreen extends StatefulWidget {
   final String providerEmail;
   final int? sessionId;
+  final SessionModel session; // Add session object for dynamic prices
 
-  const RatingsScreen({super.key, required this.providerEmail, required this.sessionId});
+  const RatingsScreen({
+    super.key,
+    required this.providerEmail,
+    required this.sessionId,
+    required this.session,
+  });
 
   @override
   State<RatingsScreen> createState() => _RatingsScreenState();
@@ -20,6 +26,129 @@ class _RatingsScreenState extends State<RatingsScreen> {
   int _selectedScore = 0;
   final TextEditingController _reviewController = TextEditingController();
 
+  // ------------------- PRICE BREAKDOWN -------------------
+  Widget _buildPriceBreakdown() {
+    // Read actual session/order values
+    final order = widget.session.shipment?.serviceOrdered?.order;
+    final double serviceFee = order?.finalPrice ?? 0.0;
+    final double tax =  0.0;
+    final double discount =  0.0;
+    final double total = serviceFee + tax - discount;
+
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      margin: const EdgeInsets.symmetric(vertical: 20),
+      color: Colors.grey.shade50,
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              "Price Breakdown",
+              style: TextStyle(
+                fontWeight: FontWeight.w900,
+                fontSize: 16,
+                color: Kolors.kDark,
+              ),
+            ),
+            const SizedBox(height: 12),
+            _buildPriceRow("Service Fee", serviceFee),
+            const SizedBox(height: 6),
+            _buildPriceRow("Tax", tax),
+            const SizedBox(height: 6),
+            _buildPriceRow("Discount", -discount),
+            const Divider(height: 24, color: Colors.grey),
+            _buildPriceRow("Total", total, isTotal: true),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPriceRow(String label, double amount, {bool isTotal = false}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontWeight: isTotal ? FontWeight.bold : FontWeight.w500,
+            fontSize: isTotal ? 16 : 14,
+          ),
+        ),
+        Text(
+          "R${amount.toStringAsFixed(2)}",
+          style: TextStyle(
+            fontWeight: isTotal ? FontWeight.bold : FontWeight.w500,
+            fontSize: isTotal ? 16 : 14,
+            color: isTotal ? Kolors.kPrimary : Colors.black87,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ------------------- RATING LOGIC -------------------
+  String _getRatingText() {
+    switch (_selectedScore) {
+      case 1:
+        return "Terrible";
+      case 2:
+        return "Poor";
+      case 3:
+        return "Average";
+      case 4:
+        return "Very Good";
+      case 5:
+        return "Excellent!";
+      default:
+        return "Select a score";
+    }
+  }
+
+  void _showSuccessDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.check_circle, color: Colors.green, size: 60),
+            const SizedBox(height: 16),
+            const Text("Thank You!", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+            const SizedBox(height: 8),
+            const Text("Your rating has been submitted.", textAlign: TextAlign.center),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Kolors.kPrimary,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                onPressed: () {
+                  Navigator.of(context, rootNavigator: true).pop();
+                  final tabNotifier = context.read<TabIndexNotifier>();
+                  tabNotifier.setIndex(0);
+                  Navigator.of(context).pushAndRemoveUntil(
+                    MaterialPageRoute(builder: (_) => const EntryPoint()),
+                    (route) => false,
+                  );
+                },
+                child: const Text("Done", style: TextStyle(color: Colors.white)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ------------------- BUILD METHOD -------------------
   @override
   Widget build(BuildContext context) {
     final controller = context.watch<RatingController>();
@@ -29,8 +158,8 @@ class _RatingsScreenState extends State<RatingsScreen> {
       appBar: AppBar(
         title: const Text("Feedback", style: TextStyle(fontWeight: FontWeight.w900)),
         centerTitle: true,
-        automaticallyImplyLeading: false, // 🚀 Removed back button
-        backgroundColor: Colors.white,
+        automaticallyImplyLeading: false,
+        backgroundColor: Kolors.kPrimary,
         elevation: 0,
       ),
       body: SafeArea(
@@ -43,7 +172,6 @@ class _RatingsScreenState extends State<RatingsScreen> {
                   child: Column(
                     children: [
                       const SizedBox(height: 20),
-                      // 1. Illustration/Icon Header
                       Container(
                         padding: const EdgeInsets.all(20),
                         decoration: BoxDecoration(
@@ -63,9 +191,13 @@ class _RatingsScreenState extends State<RatingsScreen> {
                         textAlign: TextAlign.center,
                         style: TextStyle(fontSize: 14, color: Colors.blueGrey.shade400, height: 1.5),
                       ),
-                      const SizedBox(height: 40),
 
-                      // 2. Star Rating Row
+                      // ---------- PRICE BREAKDOWN ----------
+                      _buildPriceBreakdown(),
+
+                      const SizedBox(height: 12),
+
+                      // ---------- STAR RATING ----------
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: List.generate(5, (index) {
@@ -91,7 +223,7 @@ class _RatingsScreenState extends State<RatingsScreen> {
                       ),
                       const SizedBox(height: 40),
 
-                      // 3. Review TextField
+                      // ---------- REVIEW FIELD ----------
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -121,7 +253,7 @@ class _RatingsScreenState extends State<RatingsScreen> {
                 ),
               ),
 
-              // 4. Submit Button
+              // ---------- SUBMIT BUTTON ----------
               Padding(
                 padding: const EdgeInsets.only(bottom: 20, top: 10),
                 child: SizedBox(
@@ -149,8 +281,15 @@ class _RatingsScreenState extends State<RatingsScreen> {
                             }
                           },
                     child: controller.loading
-                        ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                        : const Text("SUBMIT FEEDBACK", style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1)),
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                          )
+                        : const Text(
+                            "SUBMIT FEEDBACK",
+                            style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1),
+                          ),
                   ),
                 ),
               ),
@@ -160,62 +299,4 @@ class _RatingsScreenState extends State<RatingsScreen> {
       ),
     );
   }
-
-  String _getRatingText() {
-    switch (_selectedScore) {
-      case 1: return "Terrible";
-      case 2: return "Poor";
-      case 3: return "Average";
-      case 4: return "Very Good";
-      case 5: return "Excellent!";
-      default: return "Select a score";
-    }
-  }
-
- void _showSuccessDialog() {
-  showDialog(
-    context: context,
-    barrierDismissible: false,
-    builder: (context) => AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.check_circle, color: Colors.green, size: 60),
-          const SizedBox(height: 16),
-          const Text("Thank You!", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-          const SizedBox(height: 8),
-          const Text("Your rating has been submitted.", textAlign: TextAlign.center),
-          const SizedBox(height: 24),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Kolors.kPrimary,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              onPressed: () {
-  // Close the dialog
-  Navigator.of(context, rootNavigator: true).pop();
-
-  // Reset bottom tab to Home
-  final tabNotifier = context.read<TabIndexNotifier>();
-  tabNotifier.setIndex(0);
-
-  // Navigate to EntryPoint and remove all previous routes
-  Navigator.of(context).pushAndRemoveUntil(
-    MaterialPageRoute(builder: (_) => const EntryPoint()),
-    (route) => false,
-  );
-},
-
-              child: const Text("Done", style: TextStyle(color: Colors.white)),
-            ),
-          ),
-        ],
-      ),
-    ),
-  );
-}
-
 }

@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_application_2/screens/scan_session_qr_code/views/session_initiation_qr_screen.dart';
 import 'package:flutter_application_2/screens/schedule_directions/widgets/geo_coordinates_to_position.dart';
 import 'package:flutter_application_2/screens/schedule_directions/widgets/shipment_stauts_helper.dart';
+import 'package:flutter_application_2/screens/scheduled_services_details/widgets/schedule_flushbar_widget.dart';
 
 import 'package:here_sdk/core.dart';
 import 'package:here_sdk/mapview.dart';
@@ -207,9 +208,7 @@ void _onNavigationUpdate(
       if (!_hasArrived) {
         setState(() => _hasArrived = true);
         HapticFeedback.mediumImpact();
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text("You have arrived")));
+        ScheduleFlushbar.success(context, "You have arrived at the destination!");
       }
     }
   }
@@ -246,8 +245,20 @@ void _onNavigationUpdate(
 
   // -------------------- UI --------------------
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
+@override
+Widget build(BuildContext context) {
+  return PopScope(
+    canPop: false,
+    onPopInvoked: (didPop) {
+      if (didPop) return;
+
+     
+      ScheduleFlushbar.warning(
+        context,
+        "Navigation is active. Complete the trip first.",
+      );
+    },
+    child: Scaffold(
       body: Stack(
         children: [
           HereMap(onMapCreated: _onMapCreated),
@@ -255,8 +266,10 @@ void _onNavigationUpdate(
           _buildBottomStatusCard(),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
+
 
   Widget _buildManeuverCard() {
     final maneuverText = _maneuvers.isNotEmpty

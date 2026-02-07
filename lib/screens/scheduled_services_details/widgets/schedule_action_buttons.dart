@@ -4,12 +4,11 @@ import 'package:flutter_application_2/common/models/models/order_service_models/
 import 'package:flutter_application_2/common/utils/kcolors.dart';
 import 'package:flutter_application_2/screens/scan_session_qr_code/views/session_initiation_qr_screen.dart';
 import 'package:flutter_application_2/screens/schedule_directions/views/here_directions_schedule.dart';
-import 'package:flutter_application_2/screens/schedule_directions/widgets/here_map_controller.dart';
 import 'package:flutter_application_2/screens/schedule_directions/widgets/here_route_conversion.dart';
 import 'package:flutter_application_2/screens/schedule_directions/widgets/navigate_screen.dart';
 import 'package:flutter_application_2/screens/schedule_directions/widgets/shipment_reroute_helper.dart';
 import 'package:flutter_application_2/screens/scheduled_services_details/widgets/client_info_tile.dart';
-import 'package:flutter_application_2/screens/schedule_directions/widgets/shipment_stauts_helper.dart';
+import 'package:flutter_application_2/screens/scheduled_services_details/widgets/schedule_flushbar_widget.dart';
 import 'package:flutter_application_2/screens/session/views/session_screen.dart';
 import 'package:provider/provider.dart';
 
@@ -101,9 +100,7 @@ class ScheduleActionButtons extends StatelessWidget {
           shipment.serviceOrdered?.order?.deliveryAddress?.longitude ?? 0.0;
 
       if (lat == 0.0 || lng == 0.0) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Location not available for this job")),
-        );
+        ScheduleFlushbar.error(context, "Invalid destination coordinates");
         return;
       }
 
@@ -130,9 +127,7 @@ class ScheduleActionButtons extends StatelessWidget {
         final latestRoute = await routeHelper.getLatestRoute(shipmentId);
 
         if (latestRoute == null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("No active route available")),
-          );
+          ScheduleFlushbar.error(context, "No route found for this shipment");
           return;
         }
 
@@ -154,9 +149,7 @@ class ScheduleActionButtons extends StatelessWidget {
             ),
           );
         } catch (e) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("Failed to start navigation: $e")),
-          );
+          ScheduleFlushbar.error(context, "Failed to start navigation: ${e.toString()}");
         }
         return;
       }
@@ -197,17 +190,13 @@ class ScheduleActionButtons extends StatelessWidget {
             ),
           );
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("No session found for this delivery")),
-          );
+          ScheduleFlushbar.error(context, "Session not found for delivered shipment");
         }
         return;
       }
 
       // Everything else
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Cannot start navigation (status: $status)")),
-      );
+      ScheduleFlushbar.error(context, "Cannot start navigation for status: $status"); 
     },
 
     icon: const Icon(Icons.navigation),

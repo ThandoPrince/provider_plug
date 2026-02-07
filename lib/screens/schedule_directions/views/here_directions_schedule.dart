@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_application_2/screens/schedule_directions/widgets/here_map_controller.dart';
 import 'package:flutter_application_2/screens/schedule_directions/widgets/marker_loader.dart';
@@ -7,6 +8,7 @@ import 'package:flutter_application_2/screens/schedule_directions/widgets/naviga
 import 'package:flutter_application_2/screens/schedule_directions/widgets/travel_mode_buttons.dart'
     as travelBtn;
 import 'package:flutter_application_2/screens/schedule_directions/widgets/shipment_stauts_helper.dart';
+import 'package:flutter_application_2/screens/scheduled_services_details/widgets/schedule_flushbar_widget.dart';
 
 import 'package:here_sdk/core.dart';
 import 'package:here_sdk/mapview.dart';
@@ -61,10 +63,14 @@ class _HereDestinationScreenState extends State<HereDestinationScreen> {
       error,
     ) async {
       if (error != null) {
-        print("Map scene load error: $error");
+        if (kDebugMode) {
+          print("Map scene load error: $error");
+        }
         return;
       }
-      print("Map scene loaded!");
+      if (kDebugMode) {
+        print("Map scene loaded!");
+      }
 
       // Load marker images
       _originImage ??= await MarkerLoader.loadMarker(
@@ -170,9 +176,7 @@ void _zoomToRouteWithPadding(here.Route route) {
     Navigator.pop(context);
 
     if (!started) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("Failed to start shipment")));
+            ScheduleFlushbar.error(context, "Failed to start navigation. Please try again later.");
       return;
     }
     Navigator.push(
