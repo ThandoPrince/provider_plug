@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_application_2/common/controller/bookings/shipment_controller.dart';
 import 'package:flutter_application_2/screens/schedule_directions/widgets/here_map_controller.dart';
 import 'package:flutter_application_2/screens/schedule_directions/widgets/marker_loader.dart';
 import 'package:flutter_application_2/screens/schedule_directions/widgets/navigate_screen.dart';
@@ -13,17 +14,20 @@ import 'package:flutter_application_2/screens/scheduled_services_details/widgets
 import 'package:here_sdk/core.dart';
 import 'package:here_sdk/mapview.dart';
 import 'package:here_sdk/routing.dart' as here;
+import 'package:provider/provider.dart';
 
 class HereDestinationScreen extends StatefulWidget {
   final double destinationLat;
   final double destinationLng;
   final int shipmentId;
+  final String? providerEmail;
 
   const HereDestinationScreen({
     super.key,
     required this.destinationLat,
     required this.shipmentId,
     required this.destinationLng,
+    required this.providerEmail,
   });
 
   @override
@@ -160,36 +164,52 @@ void _zoomToRouteWithPadding(here.Route route) {
   
 
   void _beginNavigation() async {
-    if (_currentRoute == null) return;
+  if (_currentRoute == null) return;
 
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => const Center(child: CircularProgressIndicator()),
-    );
+  showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (_) => const Center(child: CircularProgressIndicator()),
+  );
 
-    final started = await ShipmentStatusApi.updateStatus(
-      widget.shipmentId,
-      "in_transit",
-    );
+  final started = await ShipmentStatusApi.updateStatus(
+    widget.shipmentId,
+    "in_transit",
+  );
 
-    Navigator.pop(context);
+  Navigator.pop(context);
 
-    if (!started) {
-            ScheduleFlushbar.error(context, "Failed to start navigation. Please try again later.");
-      return;
-    }
-    Navigator.push(
+  if (!started) {
+    ScheduleFlushbar.error(
       context,
-      MaterialPageRoute(
-        builder: (_) => NavigationScreen(
-          shipmentId: widget.shipmentId,
-          route: _currentRoute!,
-          travelMode: _selectedMode,
-        ),
-      ),
+      "Failed to start navigation. Please try again later.",
     );
+    return;
   }
+
+  /// ✅ REFRESH SHIPMENT CONTROLLER HERE
+
+
+    
+   
+
+    
+
+  /// ✅ THEN NAVIGATE
+  Navigator.pushReplacement(
+    context,
+    MaterialPageRoute(
+      builder: (_) => NavigationScreen(
+        providerEmail: widget.providerEmail,
+        shipmentId: widget.shipmentId,
+        route: _currentRoute!,
+        travelMode: _selectedMode,
+      ),
+    ),
+    
+  );
+}
+
 
   @override
   Widget build(BuildContext context) {

@@ -116,6 +116,7 @@ class ScheduleActionButtons extends StatelessWidget {
               destinationLat: lat,
               destinationLng: lng,
               shipmentId: shipmentId,
+              providerEmail: shipment.serviceOrdered?.order?.providerForService?.provider?.spProfile?.emailAddress,
             ),
           ),
         );
@@ -145,6 +146,7 @@ class ScheduleActionButtons extends StatelessWidget {
                 shipmentId: shipmentId,
                 destinationLat: latestRoute.destinationLat,
                 destinationLng: latestRoute.destinationLng,
+                providerEmail: shipment.serviceOrdered?.order?.providerForService?.provider?.spProfile?.emailAddress,
               ),
             ),
           );
@@ -154,26 +156,45 @@ class ScheduleActionButtons extends StatelessWidget {
         return;
       }
 
-      if (status == "arrived") {
-        // Arrived → check if session exists
-        final sessionController = SessionByShipmentController();
-        await sessionController.fetchSession(shipmentId.toString());
-        final session = sessionController.session;
+      if (status == "arrived" || status == "delivered") {
+  final sessionController = SessionByShipmentController();
+  await sessionController.fetchSession(shipmentId.toString());
+  final session = sessionController.session;
 
-        if (session == null) {
-          // Session doesn't exist → go to QR check-in
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) =>
-                  SessionInitiationQrScreen(shipmentId: shipmentId),
-            ),
-          );
-        }
-        return;
-      }
+  // ⭐ If session exists → ALWAYS open SessionScreen
+  if (session != null) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ChangeNotifierProvider.value(
+          value: sessionController,
+          child: SessionScreen(
+            session: session,
+            providerEmail: shipment.serviceOrdered
+                ?.order?.providerForService?.provider?.spProfile?.emailAddress,
+          ),
+        ),
+      ),
+    );
+    return;
+  }
 
-      if (status == "delivered") {
+  // ⭐ If session does not exist → go to QR
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => SessionInitiationQrScreen(
+        shipmentId: shipmentId,
+        providerEmail: shipment.serviceOrdered
+            ?.order?.providerForService?.provider?.spProfile?.emailAddress,
+      ),
+    ),
+  );
+  return;
+}
+
+
+      if (status == "in_session") {
         // Delivered → session must exist
         final sessionController = SessionByShipmentController();
         await sessionController.fetchSession(shipmentId.toString());
@@ -185,7 +206,7 @@ class ScheduleActionButtons extends StatelessWidget {
             MaterialPageRoute(
               builder: (_) => ChangeNotifierProvider.value(
                 value: sessionController,
-                child: SessionScreen(session: session),
+                child: SessionScreen(session: session, providerEmail: shipment.serviceOrdered?.order?.providerForService?.provider?.spProfile?.emailAddress),
               ),
             ),
           );

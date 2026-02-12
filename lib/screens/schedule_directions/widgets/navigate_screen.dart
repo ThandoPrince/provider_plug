@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_application_2/common/controller/bookings/shipment_controller.dart';
 import 'package:flutter_application_2/screens/scan_session_qr_code/views/session_initiation_qr_screen.dart';
 import 'package:flutter_application_2/screens/schedule_directions/widgets/geo_coordinates_to_position.dart';
 import 'package:flutter_application_2/screens/schedule_directions/widgets/shipment_stauts_helper.dart';
@@ -9,6 +10,7 @@ import 'package:flutter_application_2/screens/scheduled_services_details/widgets
 import 'package:here_sdk/core.dart';
 import 'package:here_sdk/mapview.dart';
 import 'package:here_sdk/routing.dart' as here;
+import 'package:provider/provider.dart';
 
 import 'here_map_controller.dart';
 
@@ -18,12 +20,14 @@ class NavigationScreen extends StatefulWidget {
   final int shipmentId;
   final double? destinationLat;
   final double? destinationLng;
+  final String? providerEmail;
 
   const NavigationScreen({
     super.key,
     required this.route,
     required this.travelMode,
     required this.shipmentId,
+    required this.providerEmail,
     this.destinationLat,
     this.destinationLng,
   });
@@ -214,34 +218,39 @@ void _onNavigationUpdate(
   }
 
   Future<void> _markArrived() async {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => const Center(child: CircularProgressIndicator()),
+  showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (_) => const Center(child: CircularProgressIndicator()),
+  );
+
+  final success = await ShipmentStatusApi.updateStatus(
+    widget.shipmentId,
+    "arrived",
+  );
+
+  Navigator.pop(context); // close loader
+
+  if (!success) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Failed to update shipment status")),
     );
-
-    final success = await ShipmentStatusApi.updateStatus(
-      widget.shipmentId,
-      "arrived",
-    );
-
-    Navigator.pop(context); // close loader
-
-    if (!success) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Failed to update shipment status")),
-      );
-      return;
-    }
-
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (_) =>
-            SessionInitiationQrScreen(shipmentId: widget.shipmentId),
-      ),
-    );
+    return;
   }
+
+  /// ✅ REFRESH ShipmentController BEFORE NAVIGATION
+ 
+
+  /// ✅ THEN NAVIGATE
+  Navigator.pushReplacement(
+    context,
+    MaterialPageRoute(
+      builder: (_) =>
+          SessionInitiationQrScreen(shipmentId: widget.shipmentId, providerEmail: widget.providerEmail ?? ''),
+    ),
+  );
+}
+
 
   // -------------------- UI --------------------
   @override

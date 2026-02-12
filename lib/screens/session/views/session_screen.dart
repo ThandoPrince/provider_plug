@@ -16,9 +16,10 @@ import 'package:flutter_application_2/common/utils/kcolors.dart';
 
 class SessionScreen extends StatefulWidget {
   final SessionModel session;
+  final String? providerEmail;
   final Position? initialLocation; // First location ping
 
-  const SessionScreen({super.key, required this.session, this.initialLocation});
+  const SessionScreen({super.key, required this.session, required this.providerEmail, this.initialLocation});
 
   @override
   State<SessionScreen> createState() => _SessionScreenState();

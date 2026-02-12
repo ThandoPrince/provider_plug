@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_application_2/common/controller/bookings/session_location_ping_controller.dart';
+import 'package:flutter_application_2/common/controller/bookings/shipment_controller.dart';
 import 'package:flutter_application_2/common/services/confirm_session_api.dart';
 import 'package:flutter_application_2/common/services/session_by_shipment_api.dart';
 import 'package:flutter_application_2/common/utils/kcolors.dart';
@@ -13,7 +14,9 @@ import 'package:provider/provider.dart';
 
 class SessionInitiationQrScreen extends StatefulWidget {
   final int shipmentId;
-  const SessionInitiationQrScreen({super.key, required this.shipmentId});
+  final String? providerEmail;
+  const SessionInitiationQrScreen({super.key, required this.shipmentId, required this.providerEmail});
+  
 
   @override
   State<SessionInitiationQrScreen> createState() => _SessionInitiationQrScreenState();
@@ -112,22 +115,30 @@ class _SessionInitiationQrScreenState extends State<SessionInitiationQrScreen>
 
       Navigator.pop(context); // close loader
 
-      // ⚡ Provide controller via Provider
-      final controller = SessionLocationPingController();
+      try {
+  final shipmentCtrl = context.read<ShipmentController>();
+  if (shipmentCtrl.shipments.isNotEmpty) {
+    await shipmentCtrl.fetchShipments(widget.providerEmail ?? "" );
+  }
+} catch (e) {
+  debugPrint("⚠️ Shipment refresh failed after check-in: $e");
+}
 
-      // Pass initial location to show immediate ping
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => ChangeNotifierProvider<SessionLocationPingController>(
-            create: (_) => controller,
-            child: SessionScreen(
-              session: session,
-              initialLocation: location,
-            ),
-          ),
-        ),
-      );
+      // ⚡ Provide controller via Provider
+      final controller = context.read<SessionLocationPingController>();
+
+Navigator.pushAndRemoveUntil(
+  context,
+  MaterialPageRoute(
+    builder: (_) => SessionScreen(
+      session: session,
+      initialLocation: location,
+      providerEmail: widget.providerEmail,
+    ),
+  ),
+  (route) => route.isFirst,
+);
+
     } catch (e) {
       if (Navigator.canPop(context)) Navigator.pop(context);
       cameraController.start();
