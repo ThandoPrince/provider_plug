@@ -125,7 +125,7 @@ class _SessionInitiationQrScreenState extends State<SessionInitiationQrScreen>
 }
 
       // ⚡ Provide controller via Provider
-      final controller = context.read<SessionLocationPingController>();
+     
 
 Navigator.pushAndRemoveUntil(
   context,

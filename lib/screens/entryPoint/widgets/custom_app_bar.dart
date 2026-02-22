@@ -12,8 +12,9 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   @override
   Widget build(BuildContext context) {
     return AppBar(
-      backgroundColor: Kolors.kPrimary,
-      elevation: 0,
+      backgroundColor: Colors.transparent,
+elevation: 0,
+scrolledUnderElevation: 0,
       centerTitle: true,
 
       leadingWidth: 100, // increase width to fit both icons

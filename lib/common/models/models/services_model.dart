@@ -4,6 +4,8 @@ class ServiceModel {
   final int? serviceId;
   final String? serviceName;
   final String? description;
+  final String? reviewStatus; 
+  final String? riskLevel;    
   final int? providerCount;
   final ServiceGroupModel? serviceGroup;
 
@@ -11,6 +13,8 @@ class ServiceModel {
     this.serviceId,
     this.serviceName,
     this.description,
+    this.reviewStatus,
+    this.riskLevel,
     this.providerCount,
     this.serviceGroup,
   });
@@ -24,6 +28,9 @@ class ServiceModel {
           : int.tryParse(json['service_id']?.toString() ?? ''),
       serviceName: json['service_name'] as String?,
       description: json['description'] as String?,
+      // Mapping the statuses from Django
+      reviewStatus: json['review_status'] as String?,
+      riskLevel: json['risk_level'] as String?,
       providerCount: json['provider_count'] is int
           ? json['provider_count'] as int
           : int.tryParse(json['provider_count']?.toString() ?? '0') ?? 0,
@@ -38,6 +45,8 @@ class ServiceModel {
         'service_id': serviceId,
         'service_name': serviceName,
         'description': description,
+        'review_status': reviewStatus,
+        'risk_level': riskLevel,
         'provider_count': providerCount,
         'service_group': serviceGroup?.toJson(),
       };

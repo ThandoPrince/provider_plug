@@ -3,6 +3,7 @@
   import 'package:flutter/material.dart';
   import 'package:flutter/services.dart';
   import 'package:flutter_application_2/common/storage.dart';
+import 'package:flutter_application_2/common/utils/kcolors.dart';
   import 'package:flutter_screenutil/flutter_screenutil.dart';
   import 'package:go_router/go_router.dart';
 
@@ -46,7 +47,7 @@
           height: ScreenUtil().screenHeight,
           decoration: const BoxDecoration(
             gradient: LinearGradient(
-              colors: [Colors.lightBlueAccent, Colors.white],
+              colors: [Kolors.kPrimary, Color(0xFF1A1A1A)],
               begin: Alignment.topRight,
               end: Alignment.bottomLeft,
             ),
@@ -73,6 +74,7 @@
               const Text(
                 'Change the game!',
                 style: TextStyle(
+                  color: Kolors.kSecondaryLight,
                   fontSize: 16,
                   fontStyle: FontStyle.italic,
                 ),

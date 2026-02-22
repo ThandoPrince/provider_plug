@@ -52,7 +52,7 @@ class ScheduleActionButtons extends StatelessWidget {
                       return Container(
                         decoration: const BoxDecoration(
                           gradient: LinearGradient(
-                            colors: [Kolors.kPrimary, Kolors.kSecondaryLight],
+                            colors: [  Kolors.kPrimary, Color(0xFF1A1A1A)],
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
                           ),
@@ -94,10 +94,8 @@ class ScheduleActionButtons extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
     ),
     onPressed: () async {
-      final lat =
-          shipment.serviceOrdered?.order?.deliveryAddress?.latitude ?? 0.0;
-      final lng =
-          shipment.serviceOrdered?.order?.deliveryAddress?.longitude ?? 0.0;
+      final lat = shipment.serviceOrdered?.order?.deliveryAddress?.latitude ?? 0.0;
+      final lng = shipment.serviceOrdered?.order?.deliveryAddress?.longitude ?? 0.0;
 
       if (lat == 0.0 || lng == 0.0) {
         ScheduleFlushbar.error(context, "Invalid destination coordinates");
@@ -105,9 +103,9 @@ class ScheduleActionButtons extends StatelessWidget {
       }
 
       final shipmentId = shipment.shipmentId ?? 0;
-      final status = shipment.shipmentStatus?.toLowerCase() ?? "";
+      final status = _status; 
 
-      // ----------------- CASES -----------------
+ 
       if (status == "pending") {
         Navigator.push(
           context,
@@ -123,79 +121,8 @@ class ScheduleActionButtons extends StatelessWidget {
         return;
       }
 
-      if (status == "in_transit") {
-        final routeHelper = ShipmentRouteHelper();
-        final latestRoute = await routeHelper.getLatestRoute(shipmentId);
-
-        if (latestRoute == null) {
-          ScheduleFlushbar.error(context, "No route found for this shipment");
-          return;
-        }
-
-        try {
-          final hereRoute =
-              await convertShipmentRouteToHereRoute(latestRoute);
-          final travelMode = mapTravelMode(latestRoute.travelMode ?? "car");
-
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => NavigationScreen(
-                route: hereRoute,
-                travelMode: travelMode,
-                shipmentId: shipmentId,
-                destinationLat: latestRoute.destinationLat,
-                destinationLng: latestRoute.destinationLng,
-                providerEmail: shipment.serviceOrdered?.order?.providerForService?.provider?.spProfile?.emailAddress,
-              ),
-            ),
-          );
-        } catch (e) {
-          ScheduleFlushbar.error(context, "Failed to start navigation: ${e.toString()}");
-        }
-        return;
-      }
-
-      if (status == "arrived" || status == "delivered") {
-  final sessionController = SessionByShipmentController();
-  await sessionController.fetchSession(shipmentId.toString());
-  final session = sessionController.session;
-
-  // ⭐ If session exists → ALWAYS open SessionScreen
-  if (session != null) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => ChangeNotifierProvider.value(
-          value: sessionController,
-          child: SessionScreen(
-            session: session,
-            providerEmail: shipment.serviceOrdered
-                ?.order?.providerForService?.provider?.spProfile?.emailAddress,
-          ),
-        ),
-      ),
-    );
-    return;
-  }
-
-  // ⭐ If session does not exist → go to QR
-  Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (_) => SessionInitiationQrScreen(
-        shipmentId: shipmentId,
-        providerEmail: shipment.serviceOrdered
-            ?.order?.providerForService?.provider?.spProfile?.emailAddress,
-      ),
-    ),
-  );
-  return;
-}
-
-
-      if (status == "in_session") {
-        // Delivered → session must exist
+     
+      if (status == "in_transit" || status == "arrived" || status == "delivered" || status == "in_session") {
         final sessionController = SessionByShipmentController();
         await sessionController.fetchSession(shipmentId.toString());
         final session = sessionController.session;
@@ -206,27 +133,45 @@ class ScheduleActionButtons extends StatelessWidget {
             MaterialPageRoute(
               builder: (_) => ChangeNotifierProvider.value(
                 value: sessionController,
-                child: SessionScreen(session: session, providerEmail: shipment.serviceOrdered?.order?.providerForService?.provider?.spProfile?.emailAddress),
+                child: SessionScreen(
+                  session: session,
+                  providerEmail: shipment.serviceOrdered?.order?.providerForService?.provider?.spProfile?.emailAddress,
+                ),
               ),
             ),
           );
-        } else {
-          ScheduleFlushbar.error(context, "Session not found for delivered shipment");
+          return;
         }
+
+        // If no session, open QR (only for arrived/delivered)
+        if (status == "arrived" || status == "delivered") {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => SessionInitiationQrScreen(
+                shipmentId: shipmentId,
+                providerEmail: shipment.serviceOrdered?.order?.providerForService?.provider?.spProfile?.emailAddress,
+              ),
+            ),
+          );
+          return;
+        }
+
+        ScheduleFlushbar.error(context, "Session not found for shipment");
         return;
       }
 
-      // Everything else
       ScheduleFlushbar.error(context, "Cannot start navigation for status: $status"); 
     },
 
     icon: const Icon(Icons.navigation),
-    label: const Text(
-      "Start",
-      style: TextStyle(fontWeight: FontWeight.bold),
+    label: Text(
+      _status == "pending" ? "Start" : "Resume", // ✅ Dynamic label
+      style: const TextStyle(fontWeight: FontWeight.bold),
     ),
   ),
 ),
+
 
 
       ],

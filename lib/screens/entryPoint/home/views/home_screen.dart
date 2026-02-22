@@ -51,57 +51,64 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  @override
+ @override
   Widget build(BuildContext context) {
-    const Color primaryColor = Kolors.kPrimary;
-    const Color secondaryColor = Kolors.kSecondaryLight;
-
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [primaryColor, secondaryColor],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
-        child: SafeArea(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Only show header if _showHeader is true
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                height: _showHeader ? 60 : 0,
-                child: _showHeader
-                    ? const Padding(
-                        padding: EdgeInsets.fromLTRB(20, 20, 20, 10),
-                        child: Text(
-                          "Active Bookings",
-                          style: TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
+      backgroundColor: Colors.transparent, // Let the EntryPoint gradient show through
+      body: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // --- Animated Header ---
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              height: _showHeader ? 80 : 0,
+              curve: Curves.easeInOut,
+              child: SingleChildScrollView( // Prevents overflow during animation
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(20, 20, 20, 10),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "Active Bookings",
+                        style: TextStyle(
+                          fontSize: 26,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -0.5,
+                          color: Colors.white,
                         ),
-                      )
-                    : null,
+                      ),
+                      
+                    ],
+                  ),
+                ),
               ),
+            ),
 
-              // Scrollable list with listener
-              Expanded(
-                child: NotificationListener<ScrollNotification>(
-                  onNotification: (notification) {
-                    _onScroll(notification);
-                    return false;
-                  },
+            // --- Main Body ---
+            Expanded(
+              child: NotificationListener<ScrollNotification>(
+                onNotification: (notification) {
+                  _onScroll(notification);
+                  return false;
+                },
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Kolors.kOffWhite.withOpacity(0.05), // Subtle floor
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(30),
+                      topRight: Radius.circular(30),
+                    ),
+                  ),
                   child: HomeBodyWidget(email: widget.email),
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
-}
+}   
+

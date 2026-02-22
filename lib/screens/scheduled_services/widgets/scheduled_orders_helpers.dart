@@ -19,6 +19,8 @@ Color getStatusColor(String? status) {
       return Kolors.kPrimary;
     case "arrived":
       return Colors.purple.shade700;
+    case "in_session":
+      return Colors.blue.shade700;
     default:
       return Colors.blueGrey;
   }

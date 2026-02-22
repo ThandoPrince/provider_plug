@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_application_2/common/controller/auth/auth_session_controller.dart';
 import 'package:flutter_application_2/common/utils/kcolors.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -128,11 +129,12 @@ class BookingDetailContent extends StatelessWidget {
                 child: InkWell(
                   onTap: () {
                     if (booking.orderId != null) {
-                      const hardCodedEmail = 'nomfundomabunda748@gmail.com';
+                      final email = context.read<AuthSessionController>().email!;
+                      
                       showNegotiationBottomSheet(
                         context,
                         booking.orderId!,
-                        hardCodedEmail,
+                        email,
                       );
                     }
                   },

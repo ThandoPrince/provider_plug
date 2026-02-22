@@ -8,7 +8,7 @@ class SessionModel {
   final Map<String, dynamic>? checkinLocation;
   final DateTime? checkoutTime;
   final Map<String, dynamic>? checkoutLocation;
-  final int? durationSeconds; // <-- NEW FIELD
+  final int? durationSeconds; 
 
   SessionModel({
     this.sessionId,

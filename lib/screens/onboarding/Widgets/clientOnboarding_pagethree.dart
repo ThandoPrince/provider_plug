@@ -1,10 +1,13 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_application_2/common/utils/kcolors.dart';
 import 'package:flutter_application_2/common/widgets/custom_button.dart';
-import 'package:flutter_application_2/common/widgets/reusable_text.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:flutter_vector_icons/flutter_vector_icons.dart'; // Added for premium icons
 import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class OnboardingScreenThree extends StatefulWidget {
   const OnboardingScreenThree({super.key});
@@ -14,7 +17,8 @@ class OnboardingScreenThree extends StatefulWidget {
 }
 
 class _OnboardingScreenThreeState extends State<OnboardingScreenThree> {
-  
+  bool _isAgreed = false;
+
   @override
   void initState() {
     super.initState();
@@ -24,98 +28,202 @@ class _OnboardingScreenThreeState extends State<OnboardingScreenThree> {
   Future<void> _requestLocationPermissions() async {
     LocationPermission permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
+      await Geolocator.requestPermission();
+    }
+  }
+
+  Future<void> _handleGetStarted() async {
+    if (!_isAgreed) {
+      _showSnackBar("Please accept the Terms of Use to continue.", isError: true);
+      return;
     }
 
-    if (permission == LocationPermission.denied ||
-        permission == LocationPermission.deniedForever) {
-      print('Location permission denied');
+    final status = await Permission.locationWhenInUse.request();
+
+    if (status.isGranted) {
+      HapticFeedback.heavyImpact();
+      context.go("/auth_registration");
     } else {
-      print('Location permission granted');
+      _showSnackBar("Location access is required to find jobs in your area.");
     }
+  }
+
+  void _showSnackBar(String message, {bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message, style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.w500)),
+        backgroundColor: isError ? Colors.redAccent : Kolors.kPrimary,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.r)),
+        margin: EdgeInsets.all(20.w),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Kolors.kPrimary,
       body: Container(
-        width: ScreenUtil().screenWidth,
-        height: ScreenUtil().screenHeight,
+        width: double.infinity,
+        height: double.infinity,
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            colors: [Kolors.kPrimary, Colors.white],
-            begin: Alignment.topRight,
-            end: Alignment.bottomLeft,
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Kolors.kPrimary, Color(0xFF0F0F0F)], // Deeper black for more "Pro" feel
           ),
         ),
-        child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Spacer(flex: 3),
-              const Text(
-                'Need a side hustle🤑, or to sharpen your skills? Plug makes it possible — with convenience.',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontStyle: FontStyle.italic,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.black87,
+        child: SafeArea(
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: 30.w),
+            child: Column(
+              children: [
+                const Spacer(flex: 2),
+
+                // --- Illustrative Icon ---
+                Container(
+                  padding: EdgeInsets.all(20.r),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.05),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    MaterialCommunityIcons.shield_check_outline,
+                    size: 80.sp,
+                    color: Colors.white,
+                  ),
                 ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 20),
-              const Text(
-                'Let’s get you started on the journey!',
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  fontStyle: FontStyle.italic,
-                  color: Kolors.kDark,
+
+                SizedBox(height: 40.h),
+
+                // --- Headline ---
+                Text(
+                  'Build Your Reputation.\nScale Your Income.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 34.sp,
+                    fontWeight: FontWeight.w900,
+                    height: 1.1,
+                    letterSpacing: -1.5,
+                    color: Colors.white,
+                  ),
                 ),
-                textAlign: TextAlign.center,
-              ),
-              const Spacer(flex: 2),
-              GradientBtn(
-                text: "Get Started",
-                onTap: () {
-                  context.go("/entrypoint");
-                },
-                btnColor: Kolors.kPrimary,
-                radius: 20,
-                btnHieght: 45,
-                btnWidth: ScreenUtil().screenWidth - 80,
-              ),
-              const SizedBox(height: 20),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  ReusableText(
-                    text: "Already have an account? ",
+
+                SizedBox(height: 20.h),
+
+                // --- Body Text ---
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 10.w),
+                  child: Text(
+                    'Plug simplifies finding clients, managing bookings, and getting paid. Focus on your craft; we’ll handle the rest.',
+                    textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 16.sp,
-                      fontWeight: FontWeight.w400,
-                      color: Colors.black,
+                      color: Colors.white.withOpacity(0.6),
+                      height: 1.6,
                     ),
                   ),
-                  TextButton(
-                    onPressed: () {
-                      context.go("/onboarding");
-                    },
-                    child: ReusableText(
-                      text: "Login",
-                      style: TextStyle(
-                        fontSize: 16.sp,
-                        fontWeight: FontWeight.w600,
-                        fontStyle: FontStyle.italic,
-                        color: Colors.orangeAccent,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
+                ),
+
+                const Spacer(flex: 3),
+
+                // --- Footer Section ---
+                _buildTermsSection(),
+
+                SizedBox(height: 25.h),
+
+                GradientBtn(
+                  text: "GET STARTED",
+                  onTap: _handleGetStarted,
+                  // Visual feedback for disabled state
+                  btnColor: _isAgreed ? Kolors.kPrimary : Colors.white10,
+                  radius: 18,
+                  btnHieght: 62,
+                  btnWidth: double.infinity,
+                ),
+
+                SizedBox(height: 25.h),
+
+                _buildLoginLink(),
+
+                SizedBox(height: 10.h),
+              ],
+            ),
           ),
+        ),
+      ),
+    );
+  }
+
+  // --- Modular UI Components ---
+
+  Widget _buildTermsSection() {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center, // Aligned to center for better look
+      children: [
+        Transform.scale(
+          scale: 1.2,
+          child: Checkbox(
+            value: _isAgreed,
+            activeColor: Kolors.kPrimary,
+            checkColor: Colors.white,
+            side: BorderSide(color: Colors.white24, width: 2.w),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+            onChanged: (val) {
+              HapticFeedback.lightImpact();
+              setState(() => _isAgreed = val ?? false);
+            },
+          ),
+        ),
+        SizedBox(width: 8.w),
+        Expanded(
+          child: RichText(
+            text: TextSpan(
+              style: TextStyle(fontSize: 12.sp, color: Colors.white38, height: 1.4),
+              children: [
+                const TextSpan(text: "I agree to the "),
+                TextSpan(
+                  text: "Terms of Service",
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  recognizer: TapGestureRecognizer()..onTap = () {},
+                ),
+                const TextSpan(text: " and "),
+                TextSpan(
+                  text: "Privacy Policy",
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  recognizer: TapGestureRecognizer()..onTap = () {},
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLoginLink() {
+    return Center(
+      child: RichText(
+        textAlign: TextAlign.center,
+        text: TextSpan(
+          style: TextStyle(fontSize: 15.sp, color: Colors.white54),
+          children: [
+            const TextSpan(text: "Already part of the community? "),
+            TextSpan(
+              text: "Login",
+              style: const TextStyle(
+                fontWeight: FontWeight.w900,
+                color: Colors.white,  
+                decoration: TextDecoration.underline,
+              ),
+              recognizer: TapGestureRecognizer()
+                ..onTap = () {
+                  HapticFeedback.selectionClick();
+                  context.go("/login"); 
+                },
+            ),
+          ],
         ),
       ),
     );

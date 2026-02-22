@@ -405,7 +405,7 @@ class _NegotiationBottomSheetContentState
             );
           }
 
-          // If it's the provider's message, show a "Waiting" message
+          
           return Container(
             padding: EdgeInsets.only(
               left: 16,
