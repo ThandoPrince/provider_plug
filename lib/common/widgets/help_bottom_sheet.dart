@@ -9,7 +9,7 @@ Future<dynamic> showHelpCenterBottomSheet(BuildContext context) {
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
-    backgroundColor: Colors.transparent, // 👈 Important for gradient
+    backgroundColor: Colors.transparent, 
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20.0)),
     ),
@@ -18,7 +18,7 @@ Future<dynamic> showHelpCenterBottomSheet(BuildContext context) {
         height: MediaQuery.of(context).size.height * 0.7,
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            colors: [Kolors.kPrimary, Kolors.kSecondaryLight],
+            colors: [Kolors.kPrimary, Color(0xFF1A1A1A)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -32,14 +32,14 @@ Future<dynamic> showHelpCenterBottomSheet(BuildContext context) {
               children: [
                 Text(
                   'Plug Provider App Help Center',
-                  style: appStyle(18.0, Colors.black, FontWeight.bold),
+                  style: appStyle(18.0, Kolors.kOffWhite, FontWeight.bold),
                 ),
                 SizedBox(height: 10.h),
 
                 Text(
                   'We\'re here to help! Find answers to frequently asked questions or contact our support team.',
                   textAlign: TextAlign.center,
-                  style: appStyle(16.0, Colors.black, FontWeight.normal),
+                  style: appStyle(16.0, Kolors.kOffWhite, FontWeight.normal),
                 ),
                 SizedBox(height: 15.h),
 
@@ -48,7 +48,7 @@ Future<dynamic> showHelpCenterBottomSheet(BuildContext context) {
                   style: TextStyle(
                     fontSize: 16.0,
                     fontWeight: FontWeight.bold,
-                    color: Colors.black,
+                    color: Kolors.kOffWhite,
                   ),
                 ),
                 const SizedBox(height: 5.0),
@@ -56,17 +56,17 @@ Future<dynamic> showHelpCenterBottomSheet(BuildContext context) {
                 ListTile(
                   contentPadding: EdgeInsets.zero,
                   title: const Text('Can I reschedule an active booking?',
-                      style: TextStyle(color: Colors.black)),
+                      style: TextStyle(color: Kolors.kOffWhite)),
                   trailing: const Icon(Icons.keyboard_arrow_right,
-                      color: Colors.black),
+                      color: Kolors.kOffWhite),
                   onTap: () {},
                 ),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
                   title: const Text('How do I ensure my saftey?',
-                      style: TextStyle(color: Colors.black)),
+                      style: TextStyle(color: Kolors.kOffWhite)),
                   trailing: const Icon(Icons.keyboard_arrow_right,
-                      color: Colors.black),
+                      color: Kolors.kOffWhite),
                   onTap: () {},
                 ),
 
@@ -77,17 +77,17 @@ Future<dynamic> showHelpCenterBottomSheet(BuildContext context) {
                   style: TextStyle(
                       fontSize: 16.0,
                       fontWeight: FontWeight.bold,
-                      color: Colors.black),
+                      color: Kolors.kOffWhite),
                 ),
                 SizedBox(height: 10.h),
 
                 const Row(
                   children: [
                     Icon(MaterialCommunityIcons.email_outline,
-                        color: Colors.black),
+                        color: Kolors.kOffWhite),
                     SizedBox(width: 10.0),
                     Text('t.p.tshabalala98@gmail.com',
-                        style: TextStyle(fontSize: 16.0, color: Colors.black)),
+                        style: TextStyle(fontSize: 16.0, color: Kolors.kOffWhite)),
                   ],
                 ),
                 SizedBox(height: 20.h),
@@ -95,21 +95,21 @@ Future<dynamic> showHelpCenterBottomSheet(BuildContext context) {
                 const Row(
                   children: [
                     Icon(MaterialCommunityIcons.phone_outline,
-                        color: Colors.black),
+                        color: Kolors.kOffWhite),
                     SizedBox(width: 10.0),
                     Text('0719503706',
-                        style: TextStyle(fontSize: 16.0, color: Colors.black)),
+                        style: TextStyle(fontSize: 16.0, color: Kolors.kOffWhite)),
                   ],
                 ),
                 SizedBox(height: 20.h),
 
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    foregroundColor: Kolors.kPrimary,
+                    backgroundColor: Kolors.kPrimary,
+                    foregroundColor: Kolors.kOffWhite,
                   ),
                   onPressed: () {},
-                  child: const Text('Visit Full Help Center',style: TextStyle(fontSize: 16.0, color: Colors.black)),
+                  child: const Text('Visit Full Help Center',style: TextStyle(fontSize: 16.0, color: Kolors.kOffWhite)),
                 ),
               ],
             ),

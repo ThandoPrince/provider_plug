@@ -22,37 +22,40 @@ class SPProfileCreationController extends ChangeNotifier {
     String? spDescription,
     required File? profileImage, 
   }) async {
-    if (profileImage == null) {
-      _errorMessage = "Profile image is required.";
-      notifyListeners();
-      return false;
-    }
+    // Basic safety check
+    if (profileImage == null) return false;
 
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
-    final data = {
-      "full_name": fullName,
-      "gender": gender,
-      "id_number": idNumber,
-      "dob": dob,
-      "sp_description": spDescription ?? "",
-      
-    };
+    try {
+      final data = {
+        "full_name": fullName,
+        "gender": gender,
+        "id_number": idNumber,
+        "dob": dob,
+        "sp_description": spDescription ?? "",
+      };
 
-    final response = await _apiHelper.patchSPProfile(
-      email: email,
-      data: data,
-      profileImage: profileImage,
-    );
+      final response = await _apiHelper.patchSPProfile(
+        email: email,
+        data: data,
+        profileImage: profileImage,
+      );
 
-    _isLoading = false;
-    if (response["success"]) {
-      notifyListeners();
-      return true;
-    } else {
-      _errorMessage = response["message"];
+      _isLoading = false;
+      if (response["success"]) {
+        notifyListeners();
+        return true;
+      } else {
+        _errorMessage = response["message"];
+        notifyListeners();
+        return false;
+      }
+    } catch (e) {
+      _isLoading = false;
+      _errorMessage = "Connection error. Please try again.";
       notifyListeners();
       return false;
     }

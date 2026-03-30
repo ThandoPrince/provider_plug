@@ -1,36 +1,53 @@
+import 'package:flutter_application_2/common/models/models/cost_of_service_model.dart';
 import 'package:flutter_application_2/common/models/models/service_provider_model.dart';
 import 'package:flutter_application_2/common/models/models/services_model.dart';
 
 class ProviderServiceModel {
+  final int? id;
   final ServiceProviderModel? provider;
   final ServiceModel? service;
+  final bool? isPrimary;
+  final CostOfServiceModel? costOfService;
 
   ProviderServiceModel({
+    this.id,
     this.provider,
     this.service,
+    this.isPrimary,
+    this.costOfService,
   });
 
-  /// Factory constructor to safely parse JSON
   factory ProviderServiceModel.fromJson(Map<String, dynamic>? json) {
     if (json == null) return ProviderServiceModel();
 
     return ProviderServiceModel(
-      provider: (json['provider'] is Map<String, dynamic>)
+      id: json['id'] as int?,
+      provider: json['provider'] is Map<String, dynamic>
           ? ServiceProviderModel.fromJson(json['provider'])
           : null,
-      service: (json['service'] is Map<String, dynamic>)
+      service: json['service'] is Map<String, dynamic>
           ? ServiceModel.fromJson(json['service'])
+          : null,
+      isPrimary: json['is_primary'] as bool?,
+      costOfService: json['cost_of_service'] is Map<String, dynamic>
+          ? CostOfServiceModel.fromJson(json['cost_of_service'])
           : null,
     );
   }
 
-  /// Convert to JSON (for backend)
   Map<String, dynamic> toJson() {
     return {
-      'provider': provider?.spProfile?.emailAddress,
-      'service': service?.serviceId,
+      'id': id,
+      'provider': provider?.toJson(),
+      'service': service?.toJson(),
+      'is_primary': isPrimary,
+      'cost_of_service': costOfService?.toJson(),
     };
   }
+
+  bool get hasCost => costOfService != null;
+
+  int? get serviceId => service?.serviceId;
 
   @override
   String toString() {

@@ -29,7 +29,7 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
   @override
   Widget build(BuildContext context) {
     const Color primaryColor = Kolors.kPrimary;
-    const Color secondaryColor = Kolors.kSecondaryLight;
+   
 
     return ChangeNotifierProvider(
       create: (_) =>
@@ -44,14 +44,14 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
           child: Container(
             decoration: const BoxDecoration(
               gradient: LinearGradient(
-                colors: [primaryColor, secondaryColor],
+                colors: [Kolors.kPrimary, Color(0xFF1A1A1A)],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
             ),
             child: Column(
               children: [
-                // ✅ COLLAPSING HEADER
+                
                 SafeArea(
                   bottom: false,
                   child: AnimatedContainer(
@@ -71,7 +71,7 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
                   ),
                 ),
 
-                // ✅ CONTENT
+                
                 Expanded(
                   child: Consumer<BookingByOrderIDController>(
                     builder: (context, controller, _) {

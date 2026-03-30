@@ -2,7 +2,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_application_2/common/services/address_id_creation_api.dart';
 
-
 class SPAddressDocumentController extends ChangeNotifier {
   final SPAddressDocumentApiHelper _apiHelper = SPAddressDocumentApiHelper();
 
@@ -12,12 +11,12 @@ class SPAddressDocumentController extends ChangeNotifier {
   String? _errorMessage;
   String? get errorMessage => _errorMessage;
 
-  /// Post address + optional document
   Future<bool> addAddressAndDocument({
     required String email,
     required Map<String, dynamic> address,
-    File? documentFile,
-    String? documentName,
+    required String idType,
+    File? frontFile,
+    File? backFile,
   }) async {
     _isLoading = true;
     _errorMessage = null;
@@ -26,8 +25,9 @@ class SPAddressDocumentController extends ChangeNotifier {
     final response = await _apiHelper.addAddressDocument(
       email: email,
       address: address,
-      documentFile: documentFile,
-      documentName: documentName,
+      idType: idType,
+      frontFile: frontFile,
+      backFile: backFile, // just pass null if Greenbook
     );
 
     _isLoading = false;
@@ -36,7 +36,26 @@ class SPAddressDocumentController extends ChangeNotifier {
       notifyListeners();
       return true;
     } else {
-      _errorMessage = response["message"] ?? "Unknown error";
+      final dynamic errors = response["errors"];
+
+      if (errors != null && errors is Map) {
+        if (errors['non_field_errors'] != null) {
+          _errorMessage = errors['non_field_errors'][0].toString();
+        } else if (errors['address'] != null && errors['address'] is Map) {
+          final addressErrors = errors['address'] as Map;
+          _errorMessage = "Address: ${addressErrors.values.first[0]}";
+        } else if (errors['front_file'] != null) {
+          _errorMessage = "Front ID: ${errors['front_file'][0]}";
+        } else if (errors['back_file'] != null && idType.toLowerCase() == 'card') {
+          _errorMessage = "Back ID: ${errors['back_file'][0]}";
+        } else {
+          _errorMessage =
+              response["message"] ?? "Submission failed. Please check your data.";
+        }
+      } else {
+        _errorMessage = response["message"] ?? "Unknown server error";
+      }
+
       notifyListeners();
       return false;
     }

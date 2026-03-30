@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_application_2/common/storage.dart';
 import 'package:flutter_application_2/common/utils/kcolors.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:go_router/go_router.dart';
 
 class OnboardingScreenOne extends StatefulWidget {
@@ -21,10 +21,10 @@ class _OnboardingScreenOneState extends State<OnboardingScreenOne> {
   }
 
   Future<void> _checkFirstTime() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    bool? isFirstTime = prefs.getBool('isFirstTimeProvider');
+    final bool isFirstTime =
+        Storage().getBool('isFirstTimeProvider') ?? true;
 
-    if (isFirstTime == null || isFirstTime == true) {
+    if (isFirstTime) {
       if (mounted) setState(() => _loading = false);
     } else {
       if (mounted) context.go('/login');
@@ -35,7 +35,7 @@ class _OnboardingScreenOneState extends State<OnboardingScreenOne> {
   Widget build(BuildContext context) {
     if (_loading) {
       return const Scaffold(
-        backgroundColor: Color(0xFF1A1A1A), 
+        backgroundColor: Color(0xFF1A1A1A),
         body: SizedBox.shrink(),
       );
     }
@@ -52,14 +52,12 @@ class _OnboardingScreenOneState extends State<OnboardingScreenOne> {
           ),
         ),
         child: SafeArea(
-          bottom: false, // Parent wrapper handles the bottom safe area/dots
+          bottom: false,
           child: Padding(
             padding: EdgeInsets.symmetric(horizontal: 35.w),
             child: Column(
               children: [
                 SizedBox(height: 50.h),
-
-                // --- High-Value Headline ---
                 Text(
                   'Master Your Craft.\nOwn Your Time.',
                   style: TextStyle(
@@ -71,18 +69,12 @@ class _OnboardingScreenOneState extends State<OnboardingScreenOne> {
                   ),
                   textAlign: TextAlign.center,
                 ),
-
                 SizedBox(height: 40.h),
-
-                // --- Hero Section (GIF/Image) ---
                 Expanded(
                   flex: 3,
-                  child: _buildHeroSection(),
+                  child: _buildHeroImage(),
                 ),
-
                 SizedBox(height: 40.h),
-
-                // --- Provider Value Proposition ---
                 Text(
                   'THE ULTIMATE WORKSPACE',
                   style: TextStyle(
@@ -92,9 +84,7 @@ class _OnboardingScreenOneState extends State<OnboardingScreenOne> {
                     color: Colors.white.withOpacity(0.6),
                   ),
                 ),
-                
                 SizedBox(height: 15.h),
-
                 Text(
                   'Join an elite network of pros. Get discovered by local clients, manage bookings, and grow your income—all in one place.',
                   style: TextStyle(
@@ -105,10 +95,7 @@ class _OnboardingScreenOneState extends State<OnboardingScreenOne> {
                   ),
                   textAlign: TextAlign.center,
                 ),
-
-                // --- THE "DO THE RIGHT THING" SPACER ---
-                // This ensures your content stays above the Dots and Arrows in the parent Stack
-                SizedBox(height: 140.h), 
+                SizedBox(height: 140.h),
               ],
             ),
           ),
@@ -117,41 +104,43 @@ class _OnboardingScreenOneState extends State<OnboardingScreenOne> {
     );
   }
 
-  Widget _buildHeroSection() {
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(35.r),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.4),
-            blurRadius: 30,
-            offset: const Offset(0, 15),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(35.r),
-        child: Stack(
-          children: [
-            Image.asset(
-              'assets/images/provider_welcome.gif', 
-              fit: BoxFit.cover,
-              width: double.infinity,
-              height: double.infinity,
+  Widget _buildHeroImage() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const double imageWidth = 570;
+        const double imageHeight = 1198;
+        final double targetHeight = MediaQuery.of(context).size.height * 0.58;
+
+        return Center(
+          child: Container(
+            height: targetHeight,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(30),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 25,
+                  offset: const Offset(0, 10),
+                ),
+              ],
             ),
-            Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Colors.transparent, Colors.black.withOpacity(0.3)],
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(30),
+              child: FittedBox(
+                fit: BoxFit.contain,
+                child: SizedBox(
+                  width: imageWidth,
+                  height: imageHeight,
+                  child: Image.asset(
+                    'assets/images/provider_welcome.gif',
+                    fit: BoxFit.contain,
+                  ),
                 ),
               ),
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }

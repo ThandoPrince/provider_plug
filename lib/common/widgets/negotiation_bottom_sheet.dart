@@ -5,6 +5,7 @@ import 'package:flutter_application_2/common/controller/bookings/sp_accept_negot
 import 'package:flutter_application_2/common/controller/bookings/sp_negotiation_round_ctrl.dart';
 import 'package:flutter_application_2/common/controller/bookings/sp_negotiations_by_id_email_ctrl.dart';
 import 'package:flutter_application_2/common/models/models/order_service_models/negotiation/negotiation_round_model.dart';
+import 'package:flutter_application_2/common/utils/kcolors.dart';
 import 'package:flutter_application_2/common/widgets/show_top_notification.dart';
 import 'package:flutter_application_2/screens/entryPoint/controller/bottom_tab_notifier.dart';
 // import 'package:flutter_application_2/screens/entryPoint/home/views/home_screen.dart'; // Unused import
@@ -78,27 +79,31 @@ class _NegotiationBottomSheetContentState
 
   /// Only call insertItem for new rounds and use a post-frame callback
   void _updateRounds(List<NegotiationRound> newRounds) {
-    if (newRounds.length > _displayedRounds.length) {
-      final roundsToAdd = newRounds.skip(_displayedRounds.length).toList();
+  final sortedRounds = [...newRounds]
+    ..sort((a, b) {
+      final aTime = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final bTime = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+      return aTime.compareTo(bTime);
+    });
 
-      // Update the main list state
-      _displayedRounds.addAll(roundsToAdd);
+  if (sortedRounds.length > _displayedRounds.length) {
+    final roundsToAdd = sortedRounds.skip(_displayedRounds.length).toList();
 
-      // Schedule the animation after the current frame build
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (_listKey.currentState != null) {
-          // Animate each new item
-          for (int i = 0; i < roundsToAdd.length; i++) {
-            _listKey.currentState!.insertItem(
-              _displayedRounds.length - roundsToAdd.length + i,
-              duration: const Duration(milliseconds: 300),
-            );
-          }
-          _scrollToBottom();
+    _displayedRounds.addAll(roundsToAdd);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_listKey.currentState != null) {
+        for (int i = 0; i < roundsToAdd.length; i++) {
+          _listKey.currentState!.insertItem(
+            _displayedRounds.length - roundsToAdd.length + i,
+            duration: const Duration(milliseconds: 300),
+          );
         }
-      });
-    }
+        _scrollToBottom();
+      }
+    });
   }
+}
 
   void _scrollToBottom() {
     // Slight delay to ensure the list has finished inserting/building all new items
@@ -114,84 +119,61 @@ class _NegotiationBottomSheetContentState
   }
 
   Future<void> _sendMessage(
-    SpNegotiationRoundCtrl roundCtrl,
-    SpNegotiationsByIdEmailCtrl negotiationsCtrl,
-  ) async {
-    if (_negotiationId == null) {
-      showTopNotification(context, 'Negotiation ID not found.', isError: true);
-      return;
-    }
-
-    final message = _messageController.text.trim();
-    final priceText = _priceController.text.trim();
-    final offeredPrice = double.tryParse(priceText);
-
-    if (offeredPrice == null && message.isEmpty) return;
-
-    if (priceText.isNotEmpty && offeredPrice == null) {
-      showTopNotification(context, 'Invalid price format', isError: true);
-      return;
-    }
-
-    _messageController.clear();
-    _priceController.clear();
-    FocusScope.of(context).unfocus();
-
-    try {
-      // 1️⃣ Send round
-      await roundCtrl.startRound(
-        negotiationId: _negotiationId!,
-        providerEmail: widget.providerEmail,
-        message: message.isEmpty ? null : message,
-        offeredPrice: offeredPrice,
-      );
-
-      if (!mounted) {
-        showTopNotification(context, 'Failed to send round', isError: true);
-        return;
-      }
-
-      // 2️⃣ Fetch updated negotiation (FORCE refresh)
-      await negotiationsCtrl.refreshNegotiations(
-        orderId: widget.orderId,
-        email: widget.providerEmail,
-      );
-
-      if (!mounted) return;
-
-      // 3️⃣ Extract latest round
-      final key = '${widget.orderId}|${widget.providerEmail}';
-      final negotiations = negotiationsCtrl.negotiations(key);
-
-      final latestRound = negotiations.expand((n) => n.rounds ?? []).lastOrNull;
-
-      if (latestRound == null) return;
-
-      // 4️⃣ Insert ONLY the new round (AnimatedList-safe)
-      setState(() {
-        _displayedRounds.add(latestRound);
-        _listKey.currentState?.insertItem(
-          _displayedRounds.length - 1,
-          duration: const Duration(milliseconds: 300),
-        );
-      });
-
-      // 5️⃣ Scroll to bottom
-      _scrollToBottom();
-
-      // 6️⃣ Feedback
-      showTopNotification(context, 'Message sent');
-    } catch (e) {
-      if (kDebugMode) {
-        print('❌ Failed to send negotiation round: $e');
-      }
-      showTopNotification(
-        context,
-        'Failed to send negotiation round.',
-        isError: true,
-      );
-    }
+  SpNegotiationRoundCtrl roundCtrl,
+  SpNegotiationsByIdEmailCtrl negotiationsCtrl,
+) async {
+  if (_negotiationId == null) {
+    showTopNotification(context, 'Negotiation ID not found.', isError: true);
+    return;
   }
+
+  final message = _messageController.text.trim();
+  final priceText = _priceController.text.trim();
+  final offeredPrice = double.tryParse(priceText);
+
+  if (offeredPrice == null && message.isEmpty) return;
+
+  if (priceText.isNotEmpty && offeredPrice == null) {
+    showTopNotification(context, 'Invalid price format', isError: true);
+    return;
+  }
+
+  _messageController.clear();
+  _priceController.clear();
+  FocusScope.of(context).unfocus();
+
+  try {
+    await roundCtrl.startRound(
+      negotiationId: _negotiationId!,
+      providerEmail: widget.providerEmail,
+      message: message.isEmpty ? null : message,
+      offeredPrice: offeredPrice,
+    );
+
+    if (!mounted) return;
+
+    await negotiationsCtrl.refreshNegotiations(
+      orderId: widget.orderId,
+      email: widget.providerEmail,
+    );
+
+    if (!mounted) return;
+
+    // Do NOT manually add latestRound here.
+    // _updateRounds() inside build() will handle inserting new items.
+
+    showTopNotification(context, 'Message sent');
+  } catch (e) {
+    if (kDebugMode) {
+      print('❌ Failed to send negotiation round: $e');
+    }
+    showTopNotification(
+      context,
+      'Failed to send negotiation round.',
+      isError: true,
+    );
+  }
+}
 
   @override
   Widget build(BuildContext context) {
@@ -318,7 +300,7 @@ class _NegotiationBottomSheetContentState
                     round.createdAt != null
                         ? DateFormat('HH:mm').format(round.createdAt!)
                         : 'N/A',
-                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                    style: const TextStyle(fontSize: 12, color: Kolors.kDark),
                   ),
                 ],
               ),
@@ -335,7 +317,7 @@ class _NegotiationBottomSheetContentState
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.chat_bubble_outline, size: 48, color: Colors.grey),
+            Icon(Icons.chat_bubble_outline, size: 48, color: Kolors.kOffWhite),
             SizedBox(height: 16),
             Text(
               "Start the Negotiation",
@@ -349,7 +331,7 @@ class _NegotiationBottomSheetContentState
             Text(
               "Send your first price offer to begin the discussion.",
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 14, color: Colors.grey),
+              style: TextStyle(fontSize: 14, color: Kolors.kOffWhite),
             ),
           ],
         ),
@@ -416,12 +398,12 @@ class _NegotiationBottomSheetContentState
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.access_time, color: Colors.grey.shade600, size: 20),
+                Icon(Icons.access_time, color: Kolors.kOffWhite, size: 20),
                 const SizedBox(width: 8),
                 Text(
                   'Waiting for client reply...',
                   style: TextStyle(
-                    color: Colors.grey.shade700,
+                    color: Kolors.kOffWhite,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -529,59 +511,72 @@ class _NegotiationBottomSheetContentState
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   // Price input
-                  SizedBox(
-                    width: 90,
-                    child: TextField(
-                      controller: _priceController,
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                      ),
-                      decoration: InputDecoration(
-                        hintText: 'Price',
-                        labelText: 'R',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: Colors.grey.shade300),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 14,
-                        ),
-                      ),
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
+                 SizedBox(
+  width: 90,
+  child: TextField(
+    controller: _priceController,
+    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+    style: const TextStyle(
+      fontSize: 14,
+      fontWeight: FontWeight.w600,
+      color: Kolors.kOffWhite,
+    ),
+    decoration: InputDecoration(
+      hintText: 'Price',
+      labelText: 'R',
+
+      hintStyle: const TextStyle(   // hint color
+        color: Colors.white,
+      ),
+
+      labelStyle: const TextStyle(  // "R" color
+        color: Colors.white,
+      ),
+
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: Colors.grey.shade300),
+      ),
+
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: 10,
+        vertical: 14,
+      ),
+    ),
+  ),
+),
                   const SizedBox(width: 8),
 
                   // Message input
                   Expanded(
-                    child: TextField(
-                      controller: _messageController,
-                      focusNode: _messageFocusNode,
-                      minLines: 1,
-                      maxLines: 4,
-                      decoration: InputDecoration(
-                        hintText: 'Message or optional notes...',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: Colors.grey.shade300),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 14,
-                        ),
-                      ),
-                    ),
-                  ),
+  child: TextField(
+    controller: _messageController,
+    focusNode: _messageFocusNode,
+    minLines: 1,
+    maxLines: 4,
+    style: const TextStyle(color: Colors.white), // optional: typed text color
+    decoration: InputDecoration(
+      hintText: 'Message or optional notes...',
+      hintStyle: const TextStyle(
+        color: Colors.white,
+      ),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: Colors.grey.shade300),
+      ),
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: 12,
+        vertical: 14,
+      ),
+    ),
+  ),
+),
                   const SizedBox(width: 8),
 
                   // Send button
                   Container(
   decoration: BoxDecoration(
-    color: roundCtrl.isLoading ? Colors.grey : Colors.blue,
+    color: roundCtrl.isLoading ? Colors.grey : Kolors.kPrimary,
     borderRadius: BorderRadius.circular(12),
   ),
   child: IconButton(

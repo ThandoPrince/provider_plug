@@ -21,7 +21,7 @@ class LoginCreationController extends ChangeNotifier {
     notifyListeners();
 
     final response = await _apiHelper.registration(
-      email: email,
+      email: email.toLowerCase(),
       password: password,
       mobileNumber: mobileNumber,
     );

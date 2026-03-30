@@ -1,10 +1,11 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_application_2/common/storage.dart';
 import 'package:flutter_application_2/common/utils/kcolors.dart';
 import 'package:flutter_application_2/common/widgets/custom_button.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:flutter_vector_icons/flutter_vector_icons.dart'; // Added for premium icons
+import 'package:flutter_vector_icons/flutter_vector_icons.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -34,7 +35,10 @@ class _OnboardingScreenThreeState extends State<OnboardingScreenThree> {
 
   Future<void> _handleGetStarted() async {
     if (!_isAgreed) {
-      _showSnackBar("Please accept the Terms of Use to continue.", isError: true);
+      _showTopMessage(
+        "Please accept the Terms of Use to continue.",
+        isError: true,
+      );
       return;
     }
 
@@ -42,22 +46,55 @@ class _OnboardingScreenThreeState extends State<OnboardingScreenThree> {
 
     if (status.isGranted) {
       HapticFeedback.heavyImpact();
+      Storage().setBool('isFirstTimeProvider', false);
       context.go("/auth_registration");
     } else {
-      _showSnackBar("Location access is required to find jobs in your area.");
+      _showTopMessage(
+        "Location access is required to find jobs in your area.",
+        isError: true,
+      );
     }
   }
 
-  void _showSnackBar(String message, {bool isError = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message, style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.w500)),
-        backgroundColor: isError ? Colors.redAccent : Kolors.kPrimary,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.r)),
-        margin: EdgeInsets.all(20.w),
-      ),
-    );
+  void _showTopMessage(String message, {bool isError = false}) {
+    final messenger = ScaffoldMessenger.of(context);
+
+    messenger
+      ..hideCurrentMaterialBanner()
+      ..showMaterialBanner(
+        MaterialBanner(
+          backgroundColor: isError ? Colors.redAccent : Kolors.kPrimary,
+          content: Text(
+            message,
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 14.sp,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          leading: Icon(
+            isError ? Icons.error_outline : Icons.info_outline,
+            color: Colors.white,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                messenger.hideCurrentMaterialBanner();
+              },
+              child: const Text(
+                "DISMISS",
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
+          ],
+        ),
+      );
+
+    Future.delayed(const Duration(seconds: 3), () {
+      if (mounted) {
+        messenger.hideCurrentMaterialBanner();
+      }
+    });
   }
 
   @override
@@ -71,7 +108,7 @@ class _OnboardingScreenThreeState extends State<OnboardingScreenThree> {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [Kolors.kPrimary, Color(0xFF0F0F0F)], // Deeper black for more "Pro" feel
+            colors: [Kolors.kPrimary, Color(0xFF0F0F0F)],
           ),
         ),
         child: SafeArea(
@@ -80,8 +117,6 @@ class _OnboardingScreenThreeState extends State<OnboardingScreenThree> {
             child: Column(
               children: [
                 const Spacer(flex: 2),
-
-                // --- Illustrative Icon ---
                 Container(
                   padding: EdgeInsets.all(20.r),
                   decoration: BoxDecoration(
@@ -94,10 +129,7 @@ class _OnboardingScreenThreeState extends State<OnboardingScreenThree> {
                     color: Colors.white,
                   ),
                 ),
-
                 SizedBox(height: 40.h),
-
-                // --- Headline ---
                 Text(
                   'Build Your Reputation.\nScale Your Income.',
                   textAlign: TextAlign.center,
@@ -109,10 +141,7 @@ class _OnboardingScreenThreeState extends State<OnboardingScreenThree> {
                     color: Colors.white,
                   ),
                 ),
-
                 SizedBox(height: 20.h),
-
-                // --- Body Text ---
                 Padding(
                   padding: EdgeInsets.symmetric(horizontal: 10.w),
                   child: Text(
@@ -125,28 +154,17 @@ class _OnboardingScreenThreeState extends State<OnboardingScreenThree> {
                     ),
                   ),
                 ),
-
                 const Spacer(flex: 3),
-
-                // --- Footer Section ---
                 _buildTermsSection(),
-
                 SizedBox(height: 25.h),
-
                 GradientBtn(
                   text: "GET STARTED",
                   onTap: _handleGetStarted,
-                  // Visual feedback for disabled state
                   btnColor: _isAgreed ? Kolors.kPrimary : Colors.white10,
                   radius: 18,
                   btnHieght: 62,
                   btnWidth: double.infinity,
                 ),
-
-                SizedBox(height: 25.h),
-
-                _buildLoginLink(),
-
                 SizedBox(height: 10.h),
               ],
             ),
@@ -156,11 +174,9 @@ class _OnboardingScreenThreeState extends State<OnboardingScreenThree> {
     );
   }
 
-  // --- Modular UI Components ---
-
   Widget _buildTermsSection() {
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.center, // Aligned to center for better look
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Transform.scale(
           scale: 1.2,
@@ -169,7 +185,9 @@ class _OnboardingScreenThreeState extends State<OnboardingScreenThree> {
             activeColor: Kolors.kPrimary,
             checkColor: Colors.white,
             side: BorderSide(color: Colors.white24, width: 2.w),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(6),
+            ),
             onChanged: (val) {
               HapticFeedback.lightImpact();
               setState(() => _isAgreed = val ?? false);
@@ -180,52 +198,41 @@ class _OnboardingScreenThreeState extends State<OnboardingScreenThree> {
         Expanded(
           child: RichText(
             text: TextSpan(
-              style: TextStyle(fontSize: 12.sp, color: Colors.white38, height: 1.4),
+              style: TextStyle(
+                fontSize: 12.sp,
+                color: Colors.white38,
+                height: 1.4,
+              ),
               children: [
                 const TextSpan(text: "I agree to the "),
                 TextSpan(
                   text: "Terms of Service",
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                  recognizer: TapGestureRecognizer()..onTap = () {},
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  recognizer: TapGestureRecognizer()
+                    ..onTap = () {
+                      context.push('/terms');
+                    },
                 ),
                 const TextSpan(text: " and "),
                 TextSpan(
                   text: "Privacy Policy",
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                  recognizer: TapGestureRecognizer()..onTap = () {},
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  recognizer: TapGestureRecognizer()
+                    ..onTap = () {
+                      context.push('/privacy');
+                    },
                 ),
               ],
             ),
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildLoginLink() {
-    return Center(
-      child: RichText(
-        textAlign: TextAlign.center,
-        text: TextSpan(
-          style: TextStyle(fontSize: 15.sp, color: Colors.white54),
-          children: [
-            const TextSpan(text: "Already part of the community? "),
-            TextSpan(
-              text: "Login",
-              style: const TextStyle(
-                fontWeight: FontWeight.w900,
-                color: Colors.white,  
-                decoration: TextDecoration.underline,
-              ),
-              recognizer: TapGestureRecognizer()
-                ..onTap = () {
-                  HapticFeedback.selectionClick();
-                  context.go("/login"); 
-                },
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

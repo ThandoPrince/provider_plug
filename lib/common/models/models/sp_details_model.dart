@@ -2,6 +2,7 @@ import 'package:flutter_application_2/common/models/models/client_models/address
 import 'package:flutter_application_2/common/models/models/services_model.dart';
 import 'package:flutter_application_2/common/models/models/sp_address_model.dart';
 import 'package:flutter_application_2/common/models/models/sp_profile_model.dart' show SPProfileModel;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class ServiceProviderModel {
   final SPProfileModel spProfile;
@@ -61,7 +62,8 @@ class ServiceProviderModel {
       isDiscoverable: json['is_discoverable'] as bool? ?? false,
     );
   }
-
+  
+  final String baseUrl = dotenv.env['MEDIA_BASE_URL'] ?? '';
   String get fullProfileImageUrl =>
-      profileImage.isNotEmpty ? "http://192.168.18.64:8000$profileImage" : "";
+      profileImage.isNotEmpty ? "$baseUrl$profileImage" : "";
 }

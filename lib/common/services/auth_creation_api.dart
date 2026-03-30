@@ -17,9 +17,10 @@ class AuthCreationApiHelper {
         url,
         headers: {"Content-Type": "application/json"},
         body: jsonEncode({
-          "email_address": email,
+          "email_address": email.toLowerCase(),
           "password": password,
           "mobile_number": mobileNumber,
+        
         }),
       );
 

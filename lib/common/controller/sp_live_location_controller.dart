@@ -6,42 +6,82 @@ import 'package:geolocator/geolocator.dart';
 
 class SpLiveLocationPostController extends ChangeNotifier {
   Timer? _timer;
+
   bool _isTracking = false;
   bool _isSending = false;
   bool _disposed = false;
 
+  String? _currentEmail;
+
   bool get isTracking => _isTracking;
   bool get isSending => _isSending;
+  String? get currentEmail => _currentEmail;
 
-  /// Start live location tracking
-  void startTracking({required String email, int intervalSeconds = 20}) {
-    if (_isTracking || _disposed) return;
+  /// Sync tracking with provider status (same pattern as bookings)
+  Future<void> syncTrackingWithStatus({
+    required String email,
+    required bool isOnline,
+  }) async {
+    if (isOnline) {
+      await startTracking(email: email);
+    } else {
+      stopTracking();
+    }
+  }
 
+  /// Start tracking
+  Future<void> startTracking({
+    required String email,
+    int intervalSeconds = 20,
+  }) async {
+    final normalizedEmail = email.trim();
+    if (normalizedEmail.isEmpty || _disposed) return;
+
+    final isSameEmail = _currentEmail == normalizedEmail;
+
+    // Already tracking same email
+    if (_isTracking && isSameEmail) return;
+
+    // If email changed → reset
+    if (_isTracking && !isSameEmail) {
+      stopTracking();
+    }
+
+    _currentEmail = normalizedEmail;
     _isTracking = true;
-    _safeNotifyListeners();
+    _notify();
 
-    _timer = Timer.periodic(Duration(seconds: intervalSeconds), (timer) async {
-      if (_disposed) return; // Stop if disposed
-      await _sendLocation(email);
+    // Send immediately (important UX improvement)
+    await _sendLocation(normalizedEmail);
+
+    _timer?.cancel();
+    _timer = Timer.periodic(Duration(seconds: intervalSeconds), (_) async {
+      if (!_isTracking || _disposed || _currentEmail == null) return;
+
+      await _sendLocation(_currentEmail!);
     });
   }
 
-  /// Stop tracking safely
+  /// Stop tracking
   void stopTracking() {
     _timer?.cancel();
     _timer = null;
     _isTracking = false;
-    _safeNotifyListeners();
+    _currentEmail = null;
+    _notify();
   }
 
-  /// Send current GPS location to server
+  /// Send location safely
   Future<void> _sendLocation(String email) async {
-    if (_disposed) return;
+    if (_disposed || _isSending) return;
 
     _isSending = true;
-    _safeNotifyListeners();
+    _notify();
 
     try {
+      final hasPermission = await _ensurePermission();
+      if (!hasPermission) return;
+
       final position = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
       );
@@ -53,32 +93,51 @@ class SpLiveLocationPostController extends ChangeNotifier {
       );
 
       final success = await SpLiveLocationService.sendLiveLocation(model);
-      if (!success) debugPrint("❌ Failed to send location to server");
+
+      if (!success) {
+        debugPrint("❌ Failed to send location");
+      }
     } catch (e) {
-      debugPrint("❌ Location send error: $e");
+      debugPrint("❌ Location error: $e");
     } finally {
       if (!_disposed) {
         _isSending = false;
-        _safeNotifyListeners();
+        _notify();
       }
     }
   }
 
-  /// Safe notifyListeners that avoids disposed crashes and tree-locked errors
-  void _safeNotifyListeners() {
-    if (!_disposed) {
-      // Post-frame callback ensures no setState while tree is locked
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!_disposed) notifyListeners();
-      });
+  /// Handle permission safely
+  Future<bool> _ensurePermission() async {
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      debugPrint("⚠️ Location services disabled");
+      return false;
     }
+
+    LocationPermission permission = await Geolocator.checkPermission();
+
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+    }
+
+    if (permission == LocationPermission.denied ||
+        permission == LocationPermission.deniedForever) {
+      debugPrint("⚠️ Location permission denied");
+      return false;
+    }
+
+    return true;
+  }
+
+  void _notify() {
+    if (!_disposed) notifyListeners();
   }
 
   @override
   void dispose() {
     _timer?.cancel();
-    _timer = null;
-    _disposed = true; // Mark disposed first
+    _disposed = true;
     super.dispose();
   }
 }

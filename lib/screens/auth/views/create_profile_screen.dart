@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_application_2/common/controller/registration/profile_creation_controller.dart';
 import 'package:flutter_application_2/common/utils/kcolors.dart';
+import 'package:flutter_application_2/screens/onboarding/Widgets/back_exit_widget.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_vector_icons/flutter_vector_icons.dart';
 import 'package:go_router/go_router.dart';
@@ -40,158 +41,171 @@ class _SPProfilePatchScreenState extends State<SPProfilePatchScreen> {
   ];
 
   void _showImageSourceOptions() {
-  showModalBottomSheet(
-    context: context,
-    backgroundColor: const Color(0xFF1A1A1A),
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(20.r)),
-    ),
-    builder: (context) => SafeArea(
-      child: Padding(
-        padding: EdgeInsets.symmetric(vertical: 20.h),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              "Profile Photo",
-              style: TextStyle(color: Colors.white, fontSize: 16.sp, fontWeight: FontWeight.bold),
-            ),
-            SizedBox(height: 20.h),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _buildSourceItem(
-                  icon: Feather.camera,
-                  label: "Camera",
-                  onTap: () {
-                    Navigator.pop(context);
-                    _pickImage(ImageSource.camera);
-                  },
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1A1A1A),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20.r)),
+      ),
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: EdgeInsets.symmetric(vertical: 20.h),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                "Profile Photo",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16.sp,
+                  fontWeight: FontWeight.bold,
                 ),
-                _buildSourceItem(
-                  icon: Feather.image,
-                  label: "Gallery",
-                  onTap: () {
-                    Navigator.pop(context);
-                    _pickImage(ImageSource.gallery);
-                  },
-                ),
-              ],
-            ),
-          ],
+              ),
+              SizedBox(height: 20.h),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _buildSourceItem(
+                    icon: Feather.camera,
+                    label: "Camera",
+                    onTap: () {
+                      Navigator.pop(context);
+                      _pickImage(ImageSource.camera);
+                    },
+                  ),
+                  _buildSourceItem(
+                    icon: Feather.image,
+                    label: "Gallery",
+                    onTap: () {
+                      Navigator.pop(context);
+                      _pickImage(ImageSource.gallery);
+                    },
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
-    ),
-  );
-}
+    );
+  }
 
-Widget _buildSourceItem({required IconData icon, required String label, required VoidCallback onTap}) {
-  return GestureDetector(
-    onTap: onTap,
-    child: Column(
-      children: [
-        Container(
-          padding: EdgeInsets.all(15.r),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.05),
-            shape: BoxShape.circle,
+  Widget _buildSourceItem({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        children: [
+          Container(
+            padding: EdgeInsets.all(15.r),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.05),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: Colors.white, size: 25.sp),
           ),
-          child: Icon(icon, color: Colors.white, size: 25.sp),
-        ),
-        SizedBox(height: 8.h),
-        Text(label, style: TextStyle(color: Colors.white70, fontSize: 12.sp)),
-      ],
-    ),
-  );
-}
+          SizedBox(height: 8.h),
+          Text(
+            label,
+            style: TextStyle(color: Colors.white70, fontSize: 12.sp),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final spCtrl = context.watch<SPProfileCreationController>();
 
-    return Scaffold(
-      backgroundColor: Kolors.kPrimary,
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Kolors.kPrimary, Color(0xFF1A1A1A)],
+    return DoubleBackToExit(
+      child: Scaffold(
+        backgroundColor: Kolors.kPrimary,
+        body: Container(
+          width: double.infinity,
+          height: double.infinity,
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [Kolors.kPrimary, Color(0xFF1A1A1A)],
+            ),
           ),
-        ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              _buildAppBar(context),
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: 25.w,
-                    vertical: 10.h,
-                  ),
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // --- Profile Image Picker ---
-                        Center(child: _buildImagePicker()),
-                        SizedBox(height: 30.h),
-
-                        _buildLabel("LEGAL FULL NAME"),
-                        _buildTextField(
-                          _fullNameCtrl,
-                          "e.g. John Doe",
-                          Feather.user,
-                        ),
-
-                        SizedBox(height: 20.h),
-
-                        _buildLabel("GENDER"),
-                        _buildGenderDropdown(),
-
-                        SizedBox(height: 20.h),
-
-                        _buildLabel("NATIONAL ID NUMBER"),
-                        _buildTextField(
-                          _idNumberCtrl,
-                          "13-Digit ID Number",
-                          Feather.shield,
-                          keyboardType: TextInputType.number,
-                          inputFormatters: [
-                            FilteringTextInputFormatter.digitsOnly,
-                            LengthLimitingTextInputFormatter(13),
-                          ],
-                        ),
-
-                        SizedBox(height: 20.h),
-
-                        _buildLabel("DATE OF BIRTH"),
-                        _buildDatePickerField(),
-
-                        SizedBox(height: 20.h),
-
-                        _buildLabel("PROFESSIONAL DESCRIPTION"),
-                        _buildTextField(
-                          _descCtrl,
-                          "Tell clients about your expertise...",
-                          Feather.edit_3,
-                          maxLines: 4,
-                        ),
-
-                        SizedBox(height: 40.h),
-
-                        // --- Save Button ---
-                        _buildSaveButton(spCtrl),
-                        SizedBox(height: 30.h),
-                      ],
+          child: SafeArea(
+            child: Column(
+              children: [
+                _buildAppBar(context),
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: 25.w,
+                      vertical: 10.h,
+                    ),
+                    child: Form(
+                      key: _formKey,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // --- Profile Image Picker ---
+                          Center(child: _buildImagePicker()),
+                          SizedBox(height: 30.h),
+      
+                          _buildLabel("LEGAL FULL NAME"),
+                          _buildTextField(
+                            _fullNameCtrl,
+                            "e.g. John Doe",
+                            Feather.user,
+                          ),
+      
+                          SizedBox(height: 20.h),
+      
+                          _buildLabel("GENDER"),
+                          _buildGenderDropdown(),
+      
+                          SizedBox(height: 20.h),
+      
+                          _buildLabel("NATIONAL ID NUMBER"),
+                          _buildTextField(
+                            _idNumberCtrl,
+                            "13-Digit ID Number",
+                            Feather.shield,
+                            keyboardType: TextInputType.number,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                              LengthLimitingTextInputFormatter(13),
+                            ],
+                          ),
+      
+                          SizedBox(height: 20.h),
+      
+                          _buildLabel("DATE OF BIRTH"),
+                          _buildDatePickerField(),
+      
+                          SizedBox(height: 20.h),
+      
+                          _buildLabel("PROFESSIONAL DESCRIPTION"),
+                          _buildTextField(
+                            _descCtrl,
+                            "Tell clients about your expertise...",
+                            Feather.edit_3,
+                            maxLines: 4,
+                          ),
+      
+                          SizedBox(height: 40.h),
+      
+                          // --- Save Button ---
+                          _buildSaveButton(spCtrl),
+                          SizedBox(height: 30.h),
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -358,8 +372,8 @@ Widget _buildSourceItem({required IconData icon, required String label, required
       height: 58.h,
       child: ElevatedButton(
         style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.white,
-          foregroundColor: Kolors.kPrimary,
+          backgroundColor: Kolors.kPrimary,
+          foregroundColor: Kolors.kOffWhite,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(18.r),
           ),
@@ -423,43 +437,41 @@ Widget _buildSourceItem({required IconData icon, required String label, required
     }
   }
 
-  Future<void> _submitProfile() async {
+ Future<void> _submitProfile() async {
+    // 1. Validate Form Fields (Name, ID, etc.)
     if (!_formKey.currentState!.validate()) return;
 
+    // 2. Validate Profile Image (P.p)
     if (_profileImage == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please select a profile image")),
-      );
+      HapticFeedback.vibrate(); // Feedback for error
+      FlushbarHelper.createError(
+        message: "Please select a profile photo to continue.",
+        duration: const Duration(seconds: 3),
+      ).show(context);
       return;
     }
 
     HapticFeedback.heavyImpact();
 
-    final success = await context
-        .read<SPProfileCreationController>()
-        .patchProfile(
-          email: widget.email,
-          fullName: _fullNameCtrl.text.trim(),
-          gender: _selectedGender!,
-          idNumber: _idNumberCtrl.text.trim(),
-          dob: _dobCtrl.text.trim(),
-          spDescription: _descCtrl.text.trim(),
-          profileImage: _profileImage,
-        );
+    final controller = context.read<SPProfileCreationController>();
+    
+    final success = await controller.patchProfile(
+      email: widget.email,
+      fullName: _fullNameCtrl.text.trim(),
+      gender: _selectedGender!,
+      idNumber: _idNumberCtrl.text.trim(),
+      dob: _dobCtrl.text.trim(),
+      spDescription: _descCtrl.text.trim(),
+      profileImage: _profileImage,
+    );
 
     if (success && mounted) {
       context.go('/sp_address_document/${widget.email}');
     } else if (mounted) {
-      // Show the specific error (like "ID does not match DOB")
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            context.read<SPProfileCreationController>().errorMessage ??
-                "Update Failed",
-          ),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
+      // Show API specific errors (like 'ID already exists')
+      FlushbarHelper.createError(
+        message: controller.errorMessage ?? "An unexpected error occurred",
+      ).show(context);
     }
   }
 }

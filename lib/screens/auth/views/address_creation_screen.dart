@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:another_flushbar/flushbar_helper.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_application_2/common/controller/registration/address_id_doc_controller.dart';
@@ -15,7 +16,6 @@ import 'package:provider/provider.dart';
 class SPAddressDocumentScreen extends StatefulWidget {
   final String email;
   const SPAddressDocumentScreen({super.key, required this.email});
-  
 
   @override
   State<SPAddressDocumentScreen> createState() =>
@@ -26,68 +26,120 @@ class _SPAddressDocumentScreenState extends State<SPAddressDocumentScreen> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _addressCtrl = TextEditingController();
   final TextEditingController _unitNumberCtrl = TextEditingController();
-  File? _documentFile;
-  String? _documentName;
-Map<String, dynamic>? _fullAddressMap;
+  String _buildingType = "house"; 
+  final List<String> _buildingOptions = ["house", "apartment", "office"];
+  String _idType = "card"; 
+  File? _frontFile;
+  File? _backFile;
+  Map<String, dynamic>? _fullAddressMap;
   final _picker = ImagePicker();
   static final String kGoogleApiKey = dotenv.env['GOOGLE_API_KEY'] ?? '';
   final _places = GoogleMapsPlaces(apiKey: kGoogleApiKey);
 
-  
-
   Future<void> _pickAddress() async {
-  Prediction? p = await PlacesAutocomplete.show(
-    context: context,
-    apiKey: kGoogleApiKey,
-    mode: Mode.overlay,
-    types: ["address"],
-    components: [Component(Component.country, "za")],
-    logo: const SizedBox.shrink(),
-  );
-
-  if (p != null) {
-    final details = await _places.getDetailsByPlaceId(p.placeId!);
-    
-    // Create a map to hold the detailed parts
-    Map<String, dynamic> addressData = {
-      "place_id": p.placeId,
-      "formatted_address": details.result.formattedAddress,
-      "latitude": details.result.geometry?.location.lat,
-      "longitude": details.result.geometry?.location.lng,
-    };
-
-    // Extract components (street, city, province, etc.)
-    for (var component in details.result.addressComponents) {
-      var types = component.types;
-      if (types.contains('street_number')) addressData['street_number'] = component.longName;
-      if (types.contains('route')) addressData['route'] = component.longName;
-      if (types.contains('locality')) addressData['locality'] = component.longName;
-      if (types.contains('administrative_area_level_1')) addressData['administrative_area_level_1'] = component.longName;
-      if (types.contains('country')) addressData['country'] = component.longName;
-      if (types.contains('postal_code')) addressData['postal_code'] = component.longName;
-    }
-
-    setState(() {
-      _addressCtrl.text = details.result.formattedAddress ?? "";
-      // Store the full map in a state variable to use during submission
-      _fullAddressMap = addressData; 
-    });
-  }
-}
-
-  Future<void> _pickDocument() async {
-    final picked = await _picker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 80,
+    Prediction? p = await PlacesAutocomplete.show(
+      context: context,
+      apiKey: kGoogleApiKey,
+      mode: Mode.overlay,
+      types: ["address"],
+      components: [Component(Component.country, "za")],
+      logo: const SizedBox.shrink(),
     );
-    if (picked != null) {
-      HapticFeedback.lightImpact();
+
+    if (p != null) {
+      final details = await _places.getDetailsByPlaceId(p.placeId!);
+
+      // Create a map to hold the detailed parts
+      Map<String, dynamic> addressData = {
+        "place_id": p.placeId,
+        "formatted_address": details.result.formattedAddress,
+        "latitude": details.result.geometry?.location.lat,
+        "longitude": details.result.geometry?.location.lng,
+      };
+
+     
+      for (var component in details.result.addressComponents) {
+        var types = component.types;
+        if (types.contains('street_number')) {
+          addressData['street_number'] = component.longName;
+        }
+        if (types.contains('route')) addressData['route'] = component.longName;
+        if (types.contains('locality')) {
+          addressData['locality'] = component.longName;
+        }
+        if (types.contains('administrative_area_level_1')) {
+          addressData['administrative_area_level_1'] = component.longName;
+        }
+        if (types.contains('country')) {
+          addressData['country'] = component.longName;
+        }
+        if (types.contains('postal_code')) {
+          addressData['postal_code'] = component.longName;
+        }
+      }
+
       setState(() {
-        _documentFile = File(picked.path);
-        _documentName = picked.name;
+        _addressCtrl.text = details.result.formattedAddress ?? "";
+        
+        _fullAddressMap = addressData;
       });
     }
   }
+
+  Future<void> _showImageSourceOptions(bool isFront) async {
+  showModalBottomSheet(
+    context: context,
+    backgroundColor: const Color(0xFF1A1A1A),
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(
+        top: Radius.circular(20.r),
+      ),
+    ),
+    builder: (context) {
+      return SafeArea(
+        child: Padding(
+          padding: EdgeInsets.symmetric(vertical: 20.h),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                "Select ID Document",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16.sp,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              SizedBox(height: 20.h),
+
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _buildSourceItem(
+                    icon: Feather.camera,
+                    label: "Camera",
+                    onTap: () {
+                      Navigator.pop(context);
+                      _pickImage(ImageSource.camera, isFront);
+                    },
+                  ),
+                  _buildSourceItem(
+                    icon: Feather.image,
+                    label: "Gallery",
+                    onTap: () {
+                      Navigator.pop(context);
+                      _pickImage(ImageSource.gallery, isFront);
+                    },
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+}
 
   @override
   Widget build(BuildContext context) {
@@ -122,25 +174,64 @@ Map<String, dynamic>? _fullAddressMap;
                         ),
                         _buildAddressField(),
                         SizedBox(height: 16.h),
+
+                        SizedBox(height: 16.h),
+                        _buildSectionTitle("BUILDING TYPE", Feather.home),
+                        _buildBuildingTypeDropdown(),
+                        SizedBox(height: 16.h),
                         _buildTextField(
                           controller: _unitNumberCtrl,
-                          hint: "Apartment / Unit Number (Optional)",
-                          icon: Feather.home,
+                          // Contextual hint based on selection
+                          hint: _buildingType == "house"
+                              ? "Apartment / Unit Number (Required)"
+                              : "Apartment / Unit Number (Optional)",
+                          icon: Feather.hash,
+
+                          validator: (val) {
+                            if (_buildingType == "apartment" &&
+                                (val == null || val.isEmpty)) {
+                              return "Required for apartments";
+                            }
+                            return null;
+                          },
                         ),
+
                         SizedBox(height: 32.h),
                         _buildSectionTitle(
                           "IDENTITY VERIFICATION",
                           Feather.shield,
                         ),
                         Text(
-                          "Upload a clear photo of your National ID or Passport for security verification.",
+                          "Upload a clear photo of your National ID for security verification.",
                           style: TextStyle(
                             color: Colors.white38,
                             fontSize: 13.sp,
                           ),
                         ),
                         SizedBox(height: 16.h),
-                        _buildUploadZone(),
+                        _buildSectionTitle(
+                          "SELECT ID TYPE",
+                          Feather.credit_card,
+                        ),
+                        _buildIDTypeSelector(),
+                        SizedBox(height: 20.h),
+                        Row(
+                          children: [
+                            _buildUploadTile(
+                              title: "Front Side",
+                              file: _frontFile,
+                              onTap: () => _showImageSourceOptions(true),
+                            ),
+                            if (_idType == "card") ...[
+                              SizedBox(width: 16.w),
+                              _buildUploadTile(
+                                title: "Back Side",
+                                file: _backFile,
+                                onTap: () => _showImageSourceOptions(false),
+                              ),
+                            ],
+                          ],
+                        ),
                         SizedBox(height: 40.h),
                         _buildSubmitButton(ctrl),
                         SizedBox(height: 20.h),
@@ -176,6 +267,51 @@ Map<String, dynamic>? _fullAddressMap;
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildBuildingTypeDropdown() {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 14.w),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(16.r),
+        border: Border.all(color: Colors.white10),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: _buildingType,
+          dropdownColor: const Color(0xFF1A1A1A), // Matches your dark gradient
+          isExpanded: true,
+          icon: const Icon(
+            Feather.chevron_down,
+            color: Colors.white54,
+            size: 18,
+          ),
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 14.sp,
+            fontFamily: 'Regular',
+          ),
+          items: _buildingOptions.map((String value) {
+            return DropdownMenuItem<String>(
+              value: value,
+              child: Text(
+                value.toUpperCase(),
+                style: const TextStyle(letterSpacing: 1.1),
+              ),
+            );
+          }).toList(),
+          onChanged: (newValue) {
+            setState(() {
+              _buildingType = newValue!;
+            });
+            // Re-validate the form automatically when the type changes
+            // This clears or shows the unit_number error immediately
+            _formKey.currentState?.validate();
+          },
+        ),
       ),
     );
   }
@@ -216,55 +352,59 @@ Map<String, dynamic>? _fullAddressMap;
     );
   }
 
-  Widget _buildUploadZone() {
-    bool hasFile = _documentFile != null;
-    return GestureDetector(
-      onTap: _pickDocument,
-      child: Container(
-        width: double.infinity,
-        padding: EdgeInsets.symmetric(vertical: 30.h, horizontal: 20.w),
-        decoration: BoxDecoration(
-          color: hasFile
-              ? Colors.green.withOpacity(0.05)
-              : Colors.white.withOpacity(0.03),
-          borderRadius: BorderRadius.circular(20.r),
-          border: Border.all(
-            color: hasFile
-                ? Colors.greenAccent.withOpacity(0.3)
-                : Colors.white10,
-            width: 1.5,
+  Future<void> _pickImage(ImageSource source, bool isFront) async {
+  try {
+    final picked = await _picker.pickImage(
+      source: source,
+      imageQuality: 80,
+      maxWidth: 1200,
+    );
+
+    if (picked != null) {
+      HapticFeedback.lightImpact();
+
+      setState(() {
+        if (isFront) {
+          _frontFile = File(picked.path);
+        } else {
+          _backFile = File(picked.path);
+        }
+      });
+    }
+  } catch (e) {
+    _showSnackBar("Permission denied or failed to pick image", isError: true);
+  }
+}
+
+  Widget _buildSourceItem({
+  required IconData icon,
+  required String label,
+  required VoidCallback onTap,
+}) {
+  return GestureDetector(
+    onTap: onTap,
+    child: Column(
+      children: [
+        Container(
+          padding: EdgeInsets.all(15.r),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.05),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, color: Colors.white, size: 25.sp),
+        ),
+        SizedBox(height: 8.h),
+        Text(
+          label,
+          style: TextStyle(
+            color: Colors.white70,
+            fontSize: 12.sp,
           ),
         ),
-        child: Column(
-          children: [
-            Icon(
-              hasFile ? Feather.check_circle : Feather.upload_cloud,
-              color: hasFile ? Colors.greenAccent : Colors.white38,
-              size: 40.sp,
-            ),
-            SizedBox(height: 12.h),
-            Text(
-              hasFile ? "Document Selected" : "Tap to upload document",
-              style: TextStyle(
-                color: hasFile ? Colors.greenAccent : Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 15.sp,
-              ),
-            ),
-            if (hasFile)
-              Padding(
-                padding: EdgeInsets.only(top: 8.h),
-                child: Text(
-                  _documentName ?? "",
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.white38, fontSize: 12.sp),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
+      ],
+    ),
+  );
+}
 
   Widget _buildTextField({
     required TextEditingController controller,
@@ -295,14 +435,101 @@ Map<String, dynamic>? _fullAddressMap;
     );
   }
 
+  
+
+  Widget _buildIDTypeSelector() {
+    return Row(
+      children: [
+        _idTypeButton("ID Card", "card"),
+        SizedBox(width: 12.w),
+        _idTypeButton("Green Book", "greenbook"),
+      ],
+    );
+  }
+
+  Widget _idTypeButton(String label, String value) {
+    bool isSelected = _idType == value;
+    return Expanded(
+      child: InkWell(
+        onTap: () => setState(() => _idType = value),
+        child: Container(
+          padding: EdgeInsets.symmetric(vertical: 12.h),
+          decoration: BoxDecoration(
+            color: isSelected ? Colors.white : Colors.white.withOpacity(0.05),
+            borderRadius: BorderRadius.circular(12.r),
+            border: Border.all(
+              color: isSelected ? Colors.white : Colors.white10,
+            ),
+          ),
+          child: Center(
+            child: Text(
+              label,
+              style: TextStyle(
+                color: isSelected ? Kolors.kPrimary : Colors.white54,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildUploadTile({
+    required String title,
+    required File? file,
+    required VoidCallback onTap,
+  }) {
+    bool hasFile = file != null;
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          height: 120.h,
+          decoration: BoxDecoration(
+            color: hasFile
+                ? Colors.green.withOpacity(0.05)
+                : Colors.white.withOpacity(0.03),
+            borderRadius: BorderRadius.circular(20.r),
+            border: Border.all(
+              color: hasFile
+                  ? Colors.greenAccent.withOpacity(0.3)
+                  : Colors.white10,
+              width: 1.5,
+            ),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                hasFile ? Feather.check_circle : Feather.camera,
+                color: hasFile ? Colors.greenAccent : Colors.white38,
+                size: 28.sp,
+              ),
+              SizedBox(height: 8.h),
+              Text(
+                title,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 12.sp,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildSubmitButton(SPAddressDocumentController ctrl) {
     return SizedBox(
       width: double.infinity,
       height: 58.h,
       child: ElevatedButton(
         style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.white,
-          foregroundColor: Kolors.kPrimary,
+          backgroundColor: Kolors.kPrimary,
+          foregroundColor: Kolors.kOffWhite,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(18.r),
           ),
@@ -323,29 +550,69 @@ Map<String, dynamic>? _fullAddressMap;
     );
   }
 
-  // --- Logic ---
+  // SPAddressDocumentScreen.dart
 
-  Future<void> _submitAddressDocument() async {
-  if (!_formKey.currentState!.validate() || _fullAddressMap == null) return;
-  if (_documentFile == null) {
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Please upload an ID document")));
+Future<void> _submitAddressDocument() async {
+  // 1. Basic Form Validation
+  if (!_formKey.currentState!.validate()) {
+  HapticFeedback.vibrate(); 
+  return;
+}
+
+  // 2. Custom Logic Validation (The "Plug" specific checks)
+  if (_fullAddressMap == null) {
+    _showError("Please search and select a verified Google address.");
     return;
   }
 
-  // Merge the manual inputs (unit number) into the Google data
+  if (_frontFile == null) {
+    _showError("A photo of the front of your ID is required.");
+    return;
+  }
+
+  if (_idType == "card" && _backFile == null) {
+    _showError("For Smart Cards, please upload the back side.");
+    return;
+  }
+
+  HapticFeedback.heavyImpact(); // Signal start of process
+
   final finalAddress = Map<String, dynamic>.from(_fullAddressMap!);
   finalAddress["unit_number"] = _unitNumberCtrl.text.trim();
-  finalAddress["building_type"] = "house"; // Or a dropdown selection
+  finalAddress["building_type"] = _buildingType;
 
   final success = await context.read<SPAddressDocumentController>().addAddressAndDocument(
-    email: widget.email,
-    address: finalAddress, // This now contains all 10+ fields
-    documentFile: _documentFile,
-    documentName: _documentName,
-  );
+        email: widget.email,
+        address: finalAddress,
+        idType: _idType,
+        frontFile: _frontFile,
+        backFile: _backFile,
+      );
 
   if (success && mounted) {
     context.go('/sp_select_service/${widget.email}');
+  } else if (mounted) {
+    final errorMsg = context.read<SPAddressDocumentController>().errorMessage;
+    _showError(errorMsg ?? "Registration failed. Try again.");
   }
 }
+
+// Replaces your old _showSnackBar with a much better Flushbar
+void _showError(String message) {
+  HapticFeedback.vibrate();
+  FlushbarHelper.createError(
+    message: message,
+    duration: const Duration(seconds: 4),
+  ).show(context);
+}
+
+  void _showSnackBar(String message, {bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: isError ? Colors.redAccent : null,
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
 }

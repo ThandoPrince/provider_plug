@@ -22,30 +22,24 @@ class Onboardingslidertwo extends StatelessWidget {
           SizedBox(
             height: ScreenUtil().screenHeight * 0.5,
             width: ScreenUtil().screenWidth,
-            child: Container(
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.blue, width: 3.0),
-                borderRadius: BorderRadius.circular(12.0),
-              ),
-              child: ImageSlideshow(
-                width: ScreenUtil().screenWidth,
-                height: ScreenUtil().screenHeight,
-                indicatorColor: Kolors.kGray,
-                indicatorBackgroundColor: Colors.grey,
-                onPageChanged: (p) {
-                  if (kDebugMode) {
-                    print("Page changed: $p");
-                  }
-                },
-                autoPlayInterval: 5000,
-                isLoop: true,
-                children: images.map((path) {
-                  return Image.asset(
-                    path,
-                    fit: BoxFit.fill,
-                  );
-                }).toList(),
-              ),
+            child: ImageSlideshow(
+              width: ScreenUtil().screenWidth,
+              height: ScreenUtil().screenHeight,
+              indicatorColor: Kolors.kGray,
+              indicatorBackgroundColor: Colors.grey,
+              onPageChanged: (p) {
+                if (kDebugMode) {
+                  print("Page changed: $p");
+                }
+              },
+              autoPlayInterval: 5000,
+              isLoop: true,
+              children: images.map((path) {
+                return Image.asset(
+                  path,
+                  fit: BoxFit.fill,
+                );
+              }).toList(),
             ),
           ),
         ],

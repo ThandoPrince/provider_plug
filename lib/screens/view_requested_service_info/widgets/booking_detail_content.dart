@@ -34,7 +34,7 @@ class BookingDetailContent extends StatelessWidget {
       builder: (context) => Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [Kolors.kPrimary, Kolors.kSecondaryLight],
+            colors: [Kolors.kPrimary, Color(0xFF1A1A1A)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),

@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_application_2/common/models/models/order_service_models/session_model.dart';
 import 'package:flutter_application_2/common/controller/bookings/session_location_ping_controller.dart';
 import 'package:flutter_application_2/common/controller/bookings/session_status_controller.dart';
@@ -17,9 +19,14 @@ import 'package:flutter_application_2/common/utils/kcolors.dart';
 class SessionScreen extends StatefulWidget {
   final SessionModel session;
   final String? providerEmail;
-  final Position? initialLocation; // First location ping
+  final Position? initialLocation;
 
-  const SessionScreen({super.key, required this.session, required this.providerEmail, this.initialLocation});
+  const SessionScreen({
+    super.key,
+    required this.session,
+    required this.providerEmail,
+    this.initialLocation,
+  });
 
   @override
   State<SessionScreen> createState() => _SessionScreenState();
@@ -39,63 +46,51 @@ class _SessionScreenState extends State<SessionScreen> {
     _elapsed = Duration(seconds: widget.session.durationSeconds ?? 0);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-  if (!mounted) return;
+      if (!mounted) return;
 
-  final controller = context.read<SessionLocationPingController>();
+      final controller = context.read<SessionLocationPingController>();
 
-  if (widget.initialLocation != null) {
-    controller.postPing(
-      sessionId: widget.session.sessionId!,
-      latitude: widget.initialLocation!.latitude,
-      longitude: widget.initialLocation!.longitude,
-      accuracy: widget.initialLocation!.accuracy,
-      session: widget.session,
-      siteLatitude: widget.session.shipment?.serviceOrdered?.order?.deliveryAddress?.latitude ?? 0,
-      siteLongitude: widget.session.shipment?.serviceOrdered?.order?.deliveryAddress?.longitude ?? 0,
-    );
-  }
-});
-
+      if (widget.initialLocation != null) {
+        controller.postPing(
+          sessionId: widget.session.sessionId!,
+          latitude: widget.initialLocation!.latitude,
+          longitude: widget.initialLocation!.longitude,
+          accuracy: widget.initialLocation!.accuracy,
+          session: widget.session,
+          siteLatitude: widget.session.shipment?.serviceOrdered?.order?.deliveryAddress?.latitude ?? 0,
+          siteLongitude: widget.session.shipment?.serviceOrdered?.order?.deliveryAddress?.longitude ?? 0,
+        );
+      }
+    });
 
     if (!isCompleted) {
-      // Local timer for smooth seconds
       _timer = Timer.periodic(const Duration(seconds: 1), (_) {
         if (mounted) setState(() => _elapsed += const Duration(seconds: 1));
       });
 
-      // Ping every 20 seconds
       _pingTimer = Timer.periodic(const Duration(seconds: 20), (_) => _sendPing());
-
-      // Poll backend every 20s
       _pollTimer = Timer.periodic(const Duration(seconds: 20), (_) => _pollSession());
     }
   }
 
-  /// Simple cleanup to stop all timers at once
-void _stopAllTimers() {
-  _pingTimer?.cancel();
-  _timer.cancel();
-  _pollTimer?.cancel();
-}
+  void _stopAllTimers() {
+    _pingTimer?.cancel();
+    _timer.cancel();
+    _pollTimer?.cancel();
+  }
 
-/// A professional loading overlay so the user knows the app is "thinking"
-void _showLoadingOverlay() {
-  showDialog(
-    context: context,
-    barrierDismissible: false,
-    builder: (context) => const Center(
-      child: CircularProgressIndicator(
-        color: Kolors.kPrimary,
-        strokeWidth: 3,
+  void _showLoadingOverlay() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(
+          color: Kolors.kPrimary,
+          strokeWidth: 3,
+        ),
       ),
-    ),
-  );
-}
-
-
-
-
-
+    );
+  }
 
   Future<void> _pollSession() async {
     final shipmentId = widget.session.shipmentId;
@@ -119,10 +114,7 @@ void _showLoadingOverlay() {
       final pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
       if (!mounted) return;
 
-final controller = Provider.of<SessionLocationPingController>(
-  context,
-  listen: false,
-);
+      final controller = Provider.of<SessionLocationPingController>(context, listen: false);
 
       await controller.postPing(
         sessionId: widget.session.sessionId!,
@@ -140,96 +132,81 @@ final controller = Provider.of<SessionLocationPingController>(
 
   @override
   void dispose() {
-    _timer.cancel();
-    _pingTimer?.cancel();
-    _pollTimer?.cancel();
+    _stopAllTimers();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFBFBFE),
+      backgroundColor: const Color(0xFF121212), // Dark Theme Background
       appBar: AppBar(
-        title: const Text("Current Session",
-            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
+        systemOverlayStyle: SystemUiOverlayStyle.light,
+        title: const Text(
+          "ACTIVE SESSION",
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, letterSpacing: 2, color: Colors.white),
+        ),
         centerTitle: true,
-        backgroundColor: Kolors.kPrimary,
-        foregroundColor: Colors.white,
+        backgroundColor: Colors.transparent,
         elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 18),
+          onPressed: () => Navigator.pop(context),
+        ),
       ),
       body: Column(
         children: [
-          SessionTimerHeader(elapsed: _elapsed),
+          _buildLiveTimerHeader(),
           Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                children: [
-                  SessionInfoCard(
-                    title: "Service Details",
-                    children: [
-                      SessionHelpers.buildDataRow(
-                          Icons.fingerprint, "Session ID", "#${widget.session.sessionId}"),
-                      const Divider(height: 24, color: Kolors.kOffWhite),
-                      SessionHelpers.buildDataRow(
-                          Icons.local_shipping_outlined, "Shipment ID", "#${widget.session.shipment?.shipmentId}"),
-                          const Divider(height: 24, color: Kolors.kOffWhite),
-                          SessionHelpers.buildDataRow(
-  Icons.calendar_today_outlined,
-  "Check-in Time",
-  widget.session.checkinTime != null
-      ? DateFormat("dd MMM yyyy-HH:mm").format(
-          DateTime.parse(widget.session.checkinTime.toString()).toLocal(),
-        )
-      : "-",
-),
-const Divider(height: 24, color: Kolors.kOffWhite),
-SessionHelpers.buildDataRow(
-  Icons.handyman_outlined,
-  "Service Performed",
-  widget.session.shipment?.serviceOrdered?.order?.serviceRequired?.serviceName ?? "-",)
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-                  if (widget.session.shipment?.serviceOrdered?.order?.client != null)
-                    SessionInfoCard(
-                      title: "Client Information",
-                      children: [
-                        ClientProfileRow(
-  name:
-      "${widget.session.shipment!.serviceOrdered!.order!.client!.firstName} "
-      "${widget.session.shipment!.serviceOrdered!.order!.client!.lastName}",
-  imageUrl: widget.session.shipment
-      ?.serviceOrdered?.order?.client?.profileImageUrl,
-  rating: double.tryParse(
-  widget.session.shipment
-      ?.serviceOrdered?.order?.client?.rating ?? '',
-),
-),
-
-
-                        
-                      ],
-                    ),
-                  const SizedBox(height: 40),
-                  if (!isCompleted)
-                    SizedBox(
-                      width: double.infinity,
-                      height: 60,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.redAccent,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                          elevation: 0,
-                        ),
-                        onPressed: _handleEndSession,
-                        child: const Text("END SESSION",
-                            style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.2)),
+            child: Container(
+              width: double.infinity,
+              decoration: const BoxDecoration(
+                color: Color(0xFFF8F9FA), // Professional Off-white Sheet
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(32),
+                  topRight: Radius.circular(32),
+                ),
+              ),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildSectionLabel("JOB DETAILS"),
+                    const SizedBox(height: 12),
+                    _buildInfoCard(
+                      child: Column(
+                        children: [
+                          _buildDetailRow(Icons.fingerprint, "Session ID", "#${widget.session.sessionId}"),
+                          _buildDivider(),
+                          _buildDetailRow(Icons.local_shipping_outlined, "Shipment ID", "#${widget.session.shipment?.shipmentId}"),
+                          _buildDivider(),
+                          _buildDetailRow(Icons.calendar_today_outlined, "Check-in Time", 
+                            widget.session.checkinTime != null 
+                            ? DateFormat("dd MMM yyyy - HH:mm").format(DateTime.parse(widget.session.checkinTime.toString()).toLocal())
+                            : "-"),
+                          _buildDivider(),
+                          _buildDetailRow(Icons.handyman_outlined, "Service", widget.session.shipment?.serviceOrdered?.order?.serviceRequired?.serviceName ?? "-"),
+                        ],
                       ),
                     ),
-                ],
+                    const SizedBox(height: 32),
+                    if (widget.session.shipment?.serviceOrdered?.order?.client != null) ...[
+                      _buildSectionLabel("CLIENT INFORMATION"),
+                      const SizedBox(height: 12),
+                      _buildInfoCard(
+                        child: ClientProfileRow(
+                          name: "${widget.session.shipment!.serviceOrdered!.order!.client!.firstName} ${widget.session.shipment!.serviceOrdered!.order!.client!.lastName}",
+                          imageUrl: widget.session.shipment?.serviceOrdered?.order?.client?.profileImageUrl,
+                          rating: double.tryParse(widget.session.shipment?.serviceOrdered?.order?.client?.rating ?? ''),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 48),
+                    if (!isCompleted) _buildEndSessionButton(),
+                    const SizedBox(height: 20),
+                  ],
+                ),
               ),
             ),
           ),
@@ -238,149 +215,204 @@ SessionHelpers.buildDataRow(
     );
   }
 
-  Future<void> _handleEndSession() async {
-  // --- STEP 1: Custom Confirmation Dialog ---
-  final bool? confirm = await showDialog<bool>(
-    context: context,
-    barrierDismissible: false,
-    builder: (context) {
-      return Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-        elevation: 0,
-        backgroundColor: Colors.transparent,
-        child: Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(28),
+  // --- UI HELPER METHODS ---
+
+  Widget _buildLiveTimerHeader() {
+    return Container(
+      padding: const EdgeInsets.only(bottom: 40, top: 10),
+      child: Column(
+        children: [
+          Text(
+            "TIME ELAPSED",
+            style: TextStyle(color: Kolors.kOffWhite.withOpacity(0.5), fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.5),
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+          const SizedBox(height: 8),
+          Text(
+            SessionHelpers.formatDuration(_elapsed),
+            style: const TextStyle(
+              color: Kolors.kOffWhite,
+              fontSize: 52,
+              fontWeight: FontWeight.w200,
+              fontFeatures: [FontFeature.tabularFigures()],
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Icon Header
               Container(
-                height: 60,
-                width: 60,
-                decoration: BoxDecoration(
-                  color: Colors.red.shade50,
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.logout_rounded, color: Colors.redAccent, size: 30),
+                width: 8, height: 8,
+                decoration: const BoxDecoration(color: Colors.greenAccent, shape: BoxShape.circle),
               ),
-              const SizedBox(height: 20),
-              const Text(
-                "End Session?",
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w900,
-                  color: Kolors.kDark,
-                  letterSpacing: -0.5,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                "Are you sure you want to finish this session? This will finalize the service and notify the client.",
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Kolors.kDark.withOpacity(0.6),
-                  height: 1.5,
-                ),
-              ),
-              const SizedBox(height: 24),
-              
-              // Action Buttons
-              Row(
-                children: [
-                  Expanded(
-                    child: TextButton(
-                      onPressed: () => Navigator.pop(context, false),
-                      style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                      ),
-                      child: Text(
-                        "CANCEL",
-                        style: TextStyle(
-                          color: Colors.grey.shade600,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 1.1,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () => Navigator.pop(context, true),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.redAccent,
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                      ),
-                      child: const Text(
-                        "END NOW",
-                        style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.1),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+              const SizedBox(width: 8),
+              const Text("LIVE TRACKING ACTIVE", style: TextStyle(color: Colors.greenAccent, fontSize: 10, fontWeight: FontWeight.bold)),
+            ],
+          )
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionLabel(String label) {
+    return Text(label, style: const TextStyle(color: Kolors.kDark, fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: 1.2));
+  }
+
+  Widget _buildInfoCard({required Widget child}) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 15, offset: const Offset(0, 8)),
+        ],
+      ),
+      child: child,
+    );
+  }
+
+  Widget _buildDetailRow(IconData icon, String label, String value) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(color: Kolors.kPrimary.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
+          child: Icon(icon, color: Kolors.kPrimary, size: 18),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: TextStyle(color: Colors.grey.shade500, fontSize: 11)),
+              Text(value, style: const TextStyle(color: Kolors.kDark, fontSize: 14, fontWeight: FontWeight.bold)),
             ],
           ),
-        ),
+        )
+      ],
+    );
+  }
+
+  Widget _buildDivider() => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        child: Divider(color: Colors.grey.withOpacity(0.08), height: 1),
       );
-    },
-  );
 
-  if (confirm != true) return;
+  Widget _buildEndSessionButton() {
+    return Container(
+      width: double.infinity,
+      height: 64,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        gradient: const LinearGradient(colors: [Colors.redAccent, Color(0xFFD32F2F)]),
+        boxShadow: [
+          BoxShadow(color: Colors.redAccent.withOpacity(0.3), blurRadius: 20, offset: const Offset(0, 10)),
+        ],
+      ),
+      child: ElevatedButton(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.transparent,
+          shadowColor: Colors.transparent,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        ),
+        onPressed: () {
+          HapticFeedback.heavyImpact();
+          _handleEndSession();
+        },
+        child: const Text("END SESSION", style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.5, color: Colors.white)),
+      ),
+    );
+  }
 
-  // --- STEP 2: Logic with Loading State ---
-  _showLoadingOverlay(); // Implementation below
-
-  try {
-    final pos = await Geolocator.getCurrentPosition(
-      desiredAccuracy: LocationAccuracy.high,
+  Future<void> _handleEndSession() async {
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  height: 60, width: 60,
+                  decoration: BoxDecoration(color: Colors.red.shade50, shape: BoxShape.circle),
+                  child: const Icon(Icons.logout_rounded, color: Colors.redAccent, size: 30),
+                ),
+                const SizedBox(height: 20),
+                const Text("End Session?", style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Kolors.kDark)),
+                const SizedBox(height: 12),
+                Text(
+                  "Are you sure you want to finish this session? This will finalize the service and notify the client.",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 14, color: Kolors.kDark.withOpacity(0.6), height: 1.5),
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        child: Text("CANCEL", style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.w800)),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.redAccent,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        ),
+                        child: const Text("END NOW", style: TextStyle(fontWeight: FontWeight.w900)),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
 
-    final success = await context.read<SessionStatusController>().endSession(
-          status: 'completed',
-          sessionId: widget.session.sessionId!,
-          latitude: pos.latitude,
-          longitude: pos.longitude,
-          accuracy: pos.accuracy,
-        );
+    if (confirm != true) return;
 
-    if (success && mounted) {
-      _stopAllTimers(); // Cleanup helper
-      
-      // Navigate to ratings
-      Navigator.of(context).pop(); // Remove loading overlay
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) => RatingsScreen(
-            providerEmail: widget.session.shipment?.serviceOrdered?.order
-                    ?.providerForService?.provider?.spProfile?.emailAddress ?? "",
-            sessionId: widget.session.sessionId,
-            session: widget.session, 
+    _showLoadingOverlay();
+
+    try {
+      final pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+      final success = await context.read<SessionStatusController>().endSession(
+            status: 'completed',
+            sessionId: widget.session.sessionId!,
+            latitude: pos.latitude,
+            longitude: pos.longitude,
+            accuracy: pos.accuracy,
+          );
+
+      if (success && mounted) {
+        _stopAllTimers();
+        Navigator.of(context).pop(); // Pop loading
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => RatingsScreen(
+              providerEmail: widget.session.shipment?.serviceOrdered?.order?.providerForService?.provider?.spProfile?.emailAddress ?? "",
+              sessionId: widget.session.sessionId,
+              session: widget.session,
+            ),
           ),
-        ),
-      );
-    } else {
-       Navigator.of(context).pop(); // Remove loading overlay
-       await ScheduleFlushbar.error(
-  context,
-  "Failed to end session. Please try again.",
-);
-
-
+        );
+      } else {
+        Navigator.of(context).pop(); // Pop loading
+        await ScheduleFlushbar.error(context, "Failed to end session. Please try again.");
+      }
+    } catch (e) {
+      if (mounted) Navigator.of(context).pop();
+      debugPrint("❌ End session failed: $e");
     }
-  } catch (e) {
-    Navigator.of(context).pop(); // Remove loading overlay
-    debugPrint("❌ End session failed: $e");
   }
-}
 }

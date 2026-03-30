@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_application_2/common/controller/bookings/update_ratings_controller.dart';
 import 'package:flutter_application_2/common/models/models/order_service_models/session_model.dart';
 import 'package:flutter_application_2/common/utils/kcolors.dart';
@@ -9,7 +10,7 @@ import 'package:provider/provider.dart';
 class RatingsScreen extends StatefulWidget {
   final String providerEmail;
   final int? sessionId;
-  final SessionModel session; // Add session object for dynamic prices
+  final SessionModel session;
 
   const RatingsScreen({
     super.key,
@@ -26,223 +27,192 @@ class _RatingsScreenState extends State<RatingsScreen> {
   int _selectedScore = 0;
   final TextEditingController _reviewController = TextEditingController();
 
-  // ------------------- PRICE BREAKDOWN -------------------
+  // ------------------- PRICE BREAKDOWN (GLASS-MORPHIC) -------------------
   Widget _buildPriceBreakdown() {
-    // Read actual session/order values
     final order = widget.session.shipment?.serviceOrdered?.order;
     final double serviceFee = order?.finalPrice ?? 0.0;
-    final double tax =  0.0;
-    final double discount =  0.0;
-    final double total = serviceFee + tax - discount;
+    final double total = serviceFee; // Simplified for this view
 
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      margin: const EdgeInsets.symmetric(vertical: 20),
-      color: Colors.grey.shade50,
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              "Price Breakdown",
-              style: TextStyle(
-                fontWeight: FontWeight.w900,
-                fontSize: 16,
-                color: Kolors.kDark,
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 24),
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.2), // Transparent glass effect
+        borderRadius: BorderRadius.circular(30),
+        border: Border.all(color: Colors.white.withOpacity(0.1)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                "SESSION SUMMARY",
+                style: TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 10,
+                  letterSpacing: 2.0,
+                  color: Kolors.kPrimary.withOpacity(0.8),
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            _buildPriceRow("Service Fee", serviceFee),
-            const SizedBox(height: 6),
-            _buildPriceRow("Tax", tax),
-            const SizedBox(height: 6),
-            _buildPriceRow("Discount", -discount),
-            const Divider(height: 24, color: Colors.grey),
-            _buildPriceRow("Total", total, isTotal: true),
-          ],
-        ),
+              const Icon(Icons.check_circle_outline, color: Colors.greenAccent, size: 16),
+            ],
+          ),
+          const SizedBox(height: 20),
+          _buildPriceRow("Gross Earnings", serviceFee),
+          const SizedBox(height: 12),
+          _buildPriceRow("Service Commission", 0.0, isDiscount: true),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Divider(color: Colors.white.withOpacity(0.05), height: 1),
+          ),
+          _buildPriceRow("Final Payout", total, isTotal: true),
+        ],
       ),
     );
   }
 
-  Widget _buildPriceRow(String label, double amount, {bool isTotal = false}) {
+  Widget _buildPriceRow(String label, double amount, {bool isTotal = false, bool isDiscount = false}) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(
           label,
           style: TextStyle(
-            fontWeight: isTotal ? FontWeight.bold : FontWeight.w500,
-            fontSize: isTotal ? 16 : 14,
+            fontWeight: isTotal ? FontWeight.w900 : FontWeight.w500,
+            fontSize: isTotal ? 16 : 13,
+            color: isTotal ? Colors.white : Colors.white60,
           ),
         ),
         Text(
-          "R${amount.toStringAsFixed(2)}",
+          "R ${amount.toStringAsFixed(2)}",
           style: TextStyle(
-            fontWeight: isTotal ? FontWeight.bold : FontWeight.w500,
-            fontSize: isTotal ? 16 : 14,
-            color: isTotal ? Kolors.kPrimary : Colors.black87,
+            fontWeight: isTotal ? FontWeight.w900 : FontWeight.w700,
+            fontSize: isTotal ? 24 : 14,
+            color: isTotal ? Colors.white : (isDiscount ? Colors.greenAccent : Colors.white70),
           ),
         ),
       ],
     );
   }
 
-  // ------------------- RATING LOGIC -------------------
   String _getRatingText() {
     switch (_selectedScore) {
-      case 1:
-        return "Terrible";
-      case 2:
-        return "Poor";
-      case 3:
-        return "Average";
-      case 4:
-        return "Very Good";
-      case 5:
-        return "Excellent!";
-      default:
-        return "Select a score";
+      case 1: return "Terrible";
+      case 2: return "Poor";
+      case 3: return "Average";
+      case 4: return "Very Good";
+      case 5: return "Excellent!";
+      default: return "Rate the client";
     }
   }
 
-  void _showSuccessDialog() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.check_circle, color: Colors.green, size: 60),
-            const SizedBox(height: 16),
-            const Text("Thank You!", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-            const SizedBox(height: 8),
-            const Text("Your rating has been submitted.", textAlign: TextAlign.center),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Kolors.kPrimary,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                onPressed: () {
-                  Navigator.of(context, rootNavigator: true).pop();
-                  final tabNotifier = context.read<TabIndexNotifier>();
-                  tabNotifier.setIndex(0);
-                  Navigator.of(context).pushAndRemoveUntil(
-                    MaterialPageRoute(builder: (_) => const EntryPoint()),
-                    (route) => false,
-                  );
-                },
-                child: const Text("Done", style: TextStyle(color: Colors.white)),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ------------------- BUILD METHOD -------------------
   @override
   Widget build(BuildContext context) {
     final controller = context.watch<RatingController>();
 
     return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        title: const Text("Feedback", style: TextStyle(fontWeight: FontWeight.w900)),
-        centerTitle: true,
-        automaticallyImplyLeading: false,
-        backgroundColor: Kolors.kPrimary,
-        elevation: 0,
-      ),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0),
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Kolors.kPrimary, Color(0xFF1A1A1A)],
+            begin: Alignment.topRight,
+            end: Alignment.bottomLeft,
+          ),
+        ),
+        child: SafeArea(
           child: Column(
             children: [
+              // Custom Top Nav since AppBar background is tricky with gradients
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Text(
+                  "JOB COMPLETE",
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.9),
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 3,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+              
               Expanded(
                 child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal: 24.0),
                   child: Column(
                     children: [
-                      const SizedBox(height: 20),
-                      Container(
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          color: Kolors.kSecondaryLight.withOpacity(0.3),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(Icons.star_rounded, size: 80, color: Colors.orange),
-                      ),
-                      const SizedBox(height: 24),
-                      const Text(
-                        "How was your client?",
-                        style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Color(0xFF263238)),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        "Your feedback helps maintain a safe and\nprofessional community.",
-                        textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 14, color: Colors.blueGrey.shade400, height: 1.5),
-                      ),
-
-                      // ---------- PRICE BREAKDOWN ----------
                       _buildPriceBreakdown(),
-
-                      const SizedBox(height: 12),
-
-                      // ---------- STAR RATING ----------
+                      const SizedBox(height: 20),
+                      const Text(
+                        "How was the client?",
+                        style: TextStyle(fontSize: 26, fontWeight: FontWeight.w200, color: Colors.white),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        _getRatingText().toUpperCase(),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w900, 
+                          color: Colors.white, 
+                          letterSpacing: 1.5,
+                          fontSize: 14
+                        ),
+                      ),
+                      const SizedBox(height: 40),
+                      
+                      // ---------- GLOWING STAR RATING ----------
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: List.generate(5, (index) {
                           final starIndex = index + 1;
+                          final isSelected = _selectedScore >= starIndex;
                           return GestureDetector(
-                            onTap: () => setState(() => _selectedScore = starIndex),
-                            child: AnimatedScale(
-                              scale: _selectedScore >= starIndex ? 1.2 : 1.0,
+                            onTap: () {
+                              HapticFeedback.heavyImpact();
+                              setState(() => _selectedScore = starIndex);
+                            },
+                            child: AnimatedOpacity(
                               duration: const Duration(milliseconds: 200),
+                              opacity: isSelected ? 1.0 : 0.2,
                               child: Icon(
-                                _selectedScore >= starIndex ? Icons.star_rounded : Icons.star_border_rounded,
-                                color: _selectedScore >= starIndex ? Colors.orange : Colors.grey.shade300,
-                                size: 48,
+                                Icons.star_rounded,
+                                color: isSelected ? Colors.white : Colors.white,
+                                size: 56,
                               ),
                             ),
                           );
                         }),
                       ),
-                      const SizedBox(height: 12),
-                      Text(
-                        _getRatingText(),
-                        style: const TextStyle(fontWeight: FontWeight.bold, color: Kolors.kPrimary),
-                      ),
-                      const SizedBox(height: 40),
+                      const SizedBox(height: 50),
 
-                      // ---------- REVIEW FIELD ----------
+                      // ---------- DARK INPUT FIELD ----------
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Text(
-                            "ADD A COMMENT (OPTIONAL)",
-                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: Colors.grey, letterSpacing: 1),
+                            "OPTIONAL COMMENTS",
+                            style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white54, letterSpacing: 2),
                           ),
-                          const SizedBox(height: 10),
+                          const SizedBox(height: 12),
                           TextField(
                             controller: _reviewController,
-                            maxLines: 4,
+                            maxLines: 3,
+                            style: const TextStyle(color: Colors.white),
                             decoration: InputDecoration(
-                              hintText: "Tell us more about the experience...",
-                              hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
+                              hintText: "Share your experience...",
+                              hintStyle: const TextStyle(color: Colors.white24),
                               filled: true,
-                              fillColor: const Color(0xFFF8F9FA),
+                              fillColor: Colors.black.withOpacity(0.3),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(20),
-                                borderSide: BorderSide.none,
+                                borderSide: BorderSide(color: Colors.white.withOpacity(0.1)),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(20),
+                                borderSide: BorderSide(color: Colors.white.withOpacity(0.1)),
                               ),
                             ),
                           ),
@@ -253,18 +223,18 @@ class _RatingsScreenState extends State<RatingsScreen> {
                 ),
               ),
 
-              // ---------- SUBMIT BUTTON ----------
+              // ---------- NEON SUBMIT BUTTON ----------
               Padding(
-                padding: const EdgeInsets.only(bottom: 20, top: 10),
+                padding: const EdgeInsets.all(24),
                 child: SizedBox(
                   width: double.infinity,
-                  height: 55,
+                  height: 64,
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: _selectedScore == 0 ? Colors.grey.shade300 : Kolors.kPrimary,
-                      foregroundColor: Colors.white,
+                      backgroundColor: _selectedScore == 0 ? Colors.white.withOpacity(0.1) : Colors.white,
+                      foregroundColor: Colors.black,
                       elevation: 0,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                     ),
                     onPressed: controller.loading || _selectedScore == 0
                         ? null
@@ -277,22 +247,57 @@ class _RatingsScreenState extends State<RatingsScreen> {
                             );
 
                             if (success && mounted) {
-                              _showSuccessDialog();
+                              _showSuccessDialog(); // Same as previous implementation
                             }
                           },
                     child: controller.loading
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                          )
-                        : const Text(
-                            "SUBMIT FEEDBACK",
-                            style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1),
+                        ? const CircularProgressIndicator(color: Colors.black)
+                        : Text(
+                            "SUBMIT & CLOSE",
+                            style: TextStyle(
+                              fontWeight: FontWeight.w900, 
+                              letterSpacing: 1.5,
+                              color: _selectedScore == 0 ? Kolors.kPrimary : Kolors.kOffWhite
+                            ),
                           ),
                   ),
                 ),
               ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Reuse the previous _showSuccessDialog but with _dkCard color
+  void _showSuccessDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => Dialog(
+        backgroundColor: const Color(0xFF1A1A1A),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(32)),
+        child: Padding(
+          padding: const EdgeInsets.all(32.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.stars, color: Kolors.kPrimary, size: 60),
+              const SizedBox(height: 24),
+              const Text("Well Done!", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 22)),
+              const SizedBox(height: 32),
+              ElevatedButton(
+                onPressed: () {
+                    Navigator.of(context, rootNavigator: true).pop();
+                    context.read<TabIndexNotifier>().setIndex(0);
+                    Navigator.of(context).pushAndRemoveUntil(
+                      MaterialPageRoute(builder: (_) => const EntryPoint()),
+                      (route) => false,
+                    );
+                },
+                child: const Text("FINISH"),
+              )
             ],
           ),
         ),
