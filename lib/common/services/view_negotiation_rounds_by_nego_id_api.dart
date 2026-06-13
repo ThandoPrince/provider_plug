@@ -1,17 +1,29 @@
 import 'dart:convert';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
+import 'package:flutter_application_2/common/controller/auth/auth_session_controller.dart';
 import 'package:flutter_application_2/common/models/models/order_service_models/negotiation/negotiation_round_model.dart';
 
 class ViewNegotiationRoundsByNegoIdApi {
   static final String baseUrl = dotenv.env['API_BASE_URL'] ?? '';
 
-  /// Fetch all rounds for a given negotiation ID
+  /// Fetch all rounds for a given negotiation ID with authorization headers
   static Future<List<NegotiationRound>> fetchRoundsByNegotiationId(int negotiationId) async {
     final url = Uri.parse('$baseUrl/bookings/service_orders/negotiation/rounds/$negotiationId/');
 
+    // 1. Retrieve the saved session token
+    final String? token = AuthSessionController.instance.accessToken;
+
     try {
-      final response = await http.get(url).timeout(const Duration(seconds: 15));
+      final response = await http.get(
+        url,
+        // 2. Define HTTP Request Headers
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
+        },
+      ).timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);

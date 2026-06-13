@@ -8,7 +8,7 @@ import 'package:flutter_application_2/screens/schedule_directions/widgets/marker
 import 'package:flutter_application_2/screens/schedule_directions/widgets/navigate_screen.dart';
 import 'package:flutter_application_2/screens/schedule_directions/widgets/travel_mode_buttons.dart'
     as travelBtn;
-import 'package:flutter_application_2/screens/schedule_directions/widgets/shipment_stauts_helper.dart';
+import 'package:flutter_application_2/common/services/shipment_stauts_api.dart';
 import 'package:flutter_application_2/screens/scheduled_services_details/widgets/schedule_flushbar_widget.dart';
 
 import 'package:here_sdk/core.dart';

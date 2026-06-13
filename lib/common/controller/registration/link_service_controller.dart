@@ -22,8 +22,8 @@ class LinkServiceController extends ChangeNotifier {
     lastServiceResponse = null;
     notifyListeners();
 
-    final result = await linkServiceApi.submitService(
-      email: email,
+    final result = await LinkServiceApi.submitService(
+   
       serviceName: serviceName,
       description: description,
       serviceGroupId: serviceGroupId,
@@ -33,8 +33,8 @@ class LinkServiceController extends ChangeNotifier {
 
     if (result["success"]) {
 
-final authController = AuthSessionController.instance;
-await authController.setSession(email);
+
+
       lastServiceResponse = {
         "status": result["status"],
         "service": result["service"],

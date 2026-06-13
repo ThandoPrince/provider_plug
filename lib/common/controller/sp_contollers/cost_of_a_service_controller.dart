@@ -25,11 +25,11 @@ class CostOfAServiceController extends ChangeNotifier {
       errorMessage = null;
       notifyListeners();
 
-      final response = await api.updateServiceCost(
+      final response = await CostOfServiceApi.updateServiceCost(
         email: email,
         serviceId: serviceId,
         cost: cost,
-        token: token,
+       
         notes: notes,
       );
 
@@ -47,15 +47,14 @@ class CostOfAServiceController extends ChangeNotifier {
       }
 
       if (images.isNotEmpty) {
-        await api.uploadServiceImages(
+        await CostOfServiceApi.uploadServiceImages(
           costId: costId!,
           images: images,
-          token: token,
+          
         );
       }
 
-      final authController = AuthSessionController.instance;
-      await authController.setSession(email);
+      
 
       return true;
     } catch (e) {

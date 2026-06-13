@@ -4,7 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_application_2/common/controller/bookings/shipment_controller.dart';
 import 'package:flutter_application_2/screens/scan_session_qr_code/views/session_initiation_qr_screen.dart';
 import 'package:flutter_application_2/screens/schedule_directions/widgets/geo_coordinates_to_position.dart';
-import 'package:flutter_application_2/screens/schedule_directions/widgets/shipment_stauts_helper.dart';
+import 'package:flutter_application_2/common/services/shipment_stauts_api.dart';
 import 'package:flutter_application_2/screens/scheduled_services_details/widgets/schedule_flushbar_widget.dart';
 
 import 'package:here_sdk/core.dart';

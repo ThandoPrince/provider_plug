@@ -17,7 +17,7 @@ class ProviderRatingsController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      _ratings = await api.fetchRatingsByProviderEmail(email);
+      _ratings = await ProviderCompletedServicesApi.fetchRatingsByProviderEmail(email);
     } catch (e) {
       debugPrint("Error fetching provider ratings: $e");
       _ratings = [];

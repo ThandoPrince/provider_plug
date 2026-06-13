@@ -13,10 +13,12 @@ class SPBookingController with ChangeNotifier {
   bool _isPolling = false;
   bool _isFetching = false;
   bool _isSocketMode = false;
+  bool _disposed = false;
 
   Timer? _pollTimer;
   Timer? _pingTimer;
   Timer? _reconnectTimer;
+  Timer? _healthCheckTimer;
 
   String? _currentEmail;
 
@@ -27,26 +29,30 @@ class SPBookingController with ChangeNotifier {
   bool get isSocketMode => _isSocketMode;
   String? get currentEmail => _currentEmail;
 
+  /// Sync polling with provider status (Guarded against status-stream redundant updates)
   Future<void> syncPollingWithStatus({
     required String email,
     required bool isOnline,
   }) async {
+    if (_disposed) return;
+    final normalizedEmail = email.trim().toLowerCase();
+
     if (isOnline) {
-      await startRealtime(email);
+      if (_currentEmail == normalizedEmail && (_isSocketMode || _isPolling)) return;
+      await startRealtime(normalizedEmail);
     } else {
+      if (_currentEmail == null && !_isSocketMode && !_isPolling) return;
       stopRealtime(clearBookings: false);
     }
   }
 
+  /// Entry point for real-time monitoring
   Future<void> startRealtime(String email) async {
     final normalizedEmail = email.trim().toLowerCase();
-    if (normalizedEmail.isEmpty) return;
+    if (normalizedEmail.isEmpty || _disposed) return;
 
     final isSameEmail = _currentEmail == normalizedEmail;
-
-    if (isSameEmail && (_isPolling || _isSocketMode)) {
-      return;
-    }
+    if (isSameEmail && (_isPolling || _isSocketMode)) return;
 
     if (!isSameEmail) {
       stopRealtime(clearBookings: true);
@@ -62,36 +68,42 @@ class SPBookingController with ChangeNotifier {
     await _connectSocketOrFallback(normalizedEmail);
   }
 
+  /// Connects to socket layer with absolute fallback state isolation
   Future<void> _connectSocketOrFallback(String email) async {
+    if (_disposed || _currentEmail != email) return;
+
+    // Completely clear all running loops before mutating socket handlers
     _disposeSocketTimers();
 
     _socketService.onConnected = () {
+      if (_disposed || _currentEmail != email) return;
       _isSocketMode = true;
+      _errorMessage = null;
       _stopPollingInternal();
       _startPingTimer();
-      _errorMessage = null;
-      notifyListeners();
+      _notify();
     };
 
     _socketService.onDisconnected = () {
+      if (_disposed || _currentEmail != email) return;
       _isSocketMode = false;
-      notifyListeners();
       _startPollingFallback(email);
       _scheduleReconnect(email);
+      _notify();
     };
 
     _socketService.onError = (error) {
+      if (_disposed || _currentEmail != email) return;
       _isSocketMode = false;
       _errorMessage = error.toString();
-      notifyListeners();
       _startPollingFallback(email);
       _scheduleReconnect(email);
+      _notify();
     };
 
     _socketService.onMessage = (payload) {
+      if (_disposed || _currentEmail != email) return;
       final type = payload['type'];
-      final data = payload['data'];
-
       if (type == 'booking_invite' || type == 'booking_update') {
         fetchActiveBookings(email, replace: true);
       }
@@ -99,39 +111,41 @@ class SPBookingController with ChangeNotifier {
 
     try {
       await _socketService.connect(email);
-
-      // Give socket a moment; if backend is not configured, polling will still keep app working.
       _scheduleSocketHealthCheck(email);
     } catch (e) {
       _isSocketMode = false;
       _errorMessage = e.toString();
       _startPollingFallback(email);
-      notifyListeners();
+      _scheduleReconnect(email);
+      _notify();
     }
   }
 
+  /// Asserts WebSocket visual state connectivity
   void _scheduleSocketHealthCheck(String email) {
-    Future.delayed(const Duration(seconds: 3), () {
-      if (_currentEmail != email) return;
+    _healthCheckTimer?.cancel();
+    _healthCheckTimer = Timer(const Duration(seconds: 4), () {
+      if (_disposed || _currentEmail != email) return;
       if (_socketService.isConnected) return;
-
       _startPollingFallback(email);
-      notifyListeners();
     });
   }
 
+  /// Fallback long-polling engine configured with protective intervals
   void _startPollingFallback(String email) {
-    if (_isPolling) return;
+    if (_isPolling || _disposed || _currentEmail != email) return;
 
     _isPolling = true;
     _pollTimer?.cancel();
 
-    _pollTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
-      if (_currentEmail == null || _currentEmail != email) return;
+    // Relaxed down from 5s to 25s to protect your backend servers from crashing
+    _pollTimer = Timer.periodic(const Duration(seconds: 25), (_) async {
+      if (_disposed || _currentEmail != email || _isSocketMode) {
+        _stopPollingInternal();
+        return;
+      }
       await fetchActiveBookings(email, replace: true);
     });
-
-    notifyListeners();
   }
 
   void _stopPollingInternal() {
@@ -143,23 +157,32 @@ class SPBookingController with ChangeNotifier {
   void _startPingTimer() {
     _pingTimer?.cancel();
     _pingTimer = Timer.periodic(const Duration(seconds: 25), (_) {
+      if (_disposed || !_isSocketMode) {
+        _pingTimer?.cancel();
+        return;
+      }
       _socketService.sendPing();
     });
   }
 
+  /// Linear backoff reconnection mechanism tracking execution target integrity
   void _scheduleReconnect(String email) {
     _reconnectTimer?.cancel();
-    _reconnectTimer = Timer(const Duration(seconds: 8), () async {
-      if (_currentEmail != email) return;
+    _reconnectTimer = Timer(const Duration(seconds: 12), () async {
+      if (_disposed || _currentEmail != email) return;
       if (_socketService.isConnected) return;
       await _connectSocketOrFallback(email);
     });
   }
 
+  /// Tear down real-time infrastructure and clean contextual state bindings
   void stopRealtime({bool clearBookings = false}) {
     _disposeSocketTimers();
-    _socketService.disconnect();
+    _healthCheckTimer?.cancel();
+    _healthCheckTimer = null;
     _stopPollingInternal();
+    
+    _socketService.disconnect();
     _isSocketMode = false;
 
     if (clearBookings) {
@@ -167,7 +190,7 @@ class SPBookingController with ChangeNotifier {
       _currentEmail = null;
     }
 
-    notifyListeners();
+    _notify();
   }
 
   Future<void> refresh() async {
@@ -178,17 +201,18 @@ class SPBookingController with ChangeNotifier {
     await fetchActiveBookings(email, replace: true);
   }
 
+  /// Fetches system actions utilizing memory concurrency bounds
   Future<void> fetchActiveBookings(
     String email, {
     bool replace = true,
   }) async {
-    if (_isFetching) return;
+    if (_isFetching || _disposed || _currentEmail != email) return;
 
     _isFetching = true;
 
     try {
-      final newBookings =
-          await NewBookingsByEmailApi.fetchNewBookingByEmail(email);
+      final newBookings = await NewBookingsByEmailApi.fetchNewBookingByEmail(email);
+      if (_disposed || _currentEmail != email) return;
 
       _errorMessage = null;
 
@@ -204,31 +228,26 @@ class SPBookingController with ChangeNotifier {
     } finally {
       _isFetching = false;
       _isLoading = false;
-      notifyListeners();
+      _notify();
     }
   }
 
   void clearBookings() {
     _activeBookings.clear();
-    notifyListeners();
+    _notify();
   }
 
   void _mergeBookings(List<OrderService> newBookings) {
     for (final booking in newBookings) {
-      final exists = _activeBookings.any(
-        (existing) => existing.orderId == booking.orderId,
-      );
-
-      if (!exists) {
-        _activeBookings.add(booking);
-      }
+      final exists = _activeBookings.any((existing) => existing.orderId == booking.orderId);
+      if (!exists) _activeBookings.add(booking);
     }
   }
 
   void _setLoading(bool value) {
     if (_isLoading == value) return;
     _isLoading = value;
-    notifyListeners();
+    _notify();
   }
 
   void _disposeSocketTimers() {
@@ -238,12 +257,17 @@ class SPBookingController with ChangeNotifier {
     _reconnectTimer = null;
   }
 
+  void _notify() {
+    if (!_disposed) notifyListeners();
+  }
+
   @override
   void dispose() {
+    _disposed = true;
     _disposeSocketTimers();
-    _socketService.dispose();
+    _healthCheckTimer?.cancel();
     _pollTimer?.cancel();
-    _pollTimer = null;
+    _socketService.dispose();
     super.dispose();
   }
 }

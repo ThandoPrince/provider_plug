@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_application_2/common/controller/auth/get_provider_for_service_controller.dart';
 import 'package:flutter_application_2/common/controller/registration/fetch_auth_controller.dart';
@@ -60,6 +61,7 @@ class _SPLoginScreenState extends State<SPLoginScreen> {
 
  Future<void> _handleLogin(SPLoginController controller) async {
   if (!_formKey.currentState!.validate()) return;
+  final user = controller.user;
 
   final email = _emailController.text.trim().toLowerCase();
 
@@ -77,20 +79,14 @@ class _SPLoginScreenState extends State<SPLoginScreen> {
     return;
   }
 
-  final profileController = context.read<FetchAuthController>();
-  final profileSuccess = await profileController.fetchProfile(email);
+  
 
   if (!mounted) return;
 
-  if (!profileSuccess) {
-    _showErrorSnackBar(
-      profileController.error ?? "Failed to fetch profile details.",
-    );
-    return;
-  }
 
-  final profile = profileController.profile;
-  final status = profile?.isProfileCompleted;
+
+ 
+ 
 
   SuccessOverlay.show(
     context,
@@ -100,8 +96,11 @@ class _SPLoginScreenState extends State<SPLoginScreen> {
   await Future.delayed(const Duration(seconds: 2));
 
   if (!mounted) return;
+  if (kDebugMode) {
+    print(controller.user?.data?.isProfileCompleted);
+  }
 
-  switch (status) {
+  switch (controller.user?.data?.isProfileCompleted) {
     case 'in-details':
       context.go('/sp_patch/$email');
       break;

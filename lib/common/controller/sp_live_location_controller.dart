@@ -10,39 +10,48 @@ class SpLiveLocationPostController extends ChangeNotifier {
   bool _isTracking = false;
   bool _isSending = false;
   bool _disposed = false;
-
   String? _currentEmail;
 
   bool get isTracking => _isTracking;
   bool get isSending => _isSending;
   String? get currentEmail => _currentEmail;
 
-  /// Sync tracking with provider status (same pattern as bookings)
+  /// Sync tracking with provider status (Guarded against status-stream redundancy)
   Future<void> syncTrackingWithStatus({
     required String email,
     required bool isOnline,
   }) async {
+    final normalizedEmail = email.trim().toLowerCase();
+    
     if (isOnline) {
-      await startTracking(email: email);
+      // Avoid re-triggering tracking if nothing has changed
+      if (_isTracking && _currentEmail == normalizedEmail) return;
+      await startTracking(email: normalizedEmail);
     } else {
+      if (!_isTracking) return;
       stopTracking();
     }
   }
 
-  /// Start tracking
+  /// Start tracking with absolute guard setups
   Future<void> startTracking({
     required String email,
-    int intervalSeconds = 20,
+    int intervalSeconds = 30, // Relaxed telemetry window slightly for resource relief
   }) async {
-    final normalizedEmail = email.trim();
+    final normalizedEmail = email.trim().toLowerCase();
     if (normalizedEmail.isEmpty || _disposed) return;
 
+    // Hard blocker: Ensure previous timer instances are completely dropped *before* any async gaps
+    _timer?.cancel();
+    _timer = null;
+
     final isSameEmail = _currentEmail == normalizedEmail;
+    if (_isTracking && isSameEmail) {
+      // Re-initialize periodic loop if it was dropped but state matches
+      _setupTimer(normalizedEmail, intervalSeconds);
+      return;
+    }
 
-    // Already tracking same email
-    if (_isTracking && isSameEmail) return;
-
-    // If email changed → reset
     if (_isTracking && !isSameEmail) {
       stopTracking();
     }
@@ -51,18 +60,27 @@ class SpLiveLocationPostController extends ChangeNotifier {
     _isTracking = true;
     _notify();
 
-    // Send immediately (important UX improvement)
+    // Start periodic background loop prior to processing long execution steps
+    _setupTimer(normalizedEmail, intervalSeconds);
+
+    // Isolated tracking trigger
     await _sendLocation(normalizedEmail);
+  }
 
+  /// Extracted timer setup logic to safely handle context bounds
+  void _setupTimer(String email, int intervalSeconds) {
     _timer?.cancel();
-    _timer = Timer.periodic(Duration(seconds: intervalSeconds), (_) async {
-      if (!_isTracking || _disposed || _currentEmail == null) return;
-
-      await _sendLocation(_currentEmail!);
+    _timer = Timer.periodic(Duration(seconds: intervalSeconds), (_) {
+      if (!_isTracking || _disposed || _currentEmail != email) {
+        _timer?.cancel();
+        return;
+      }
+      // Fire-and-forget inside standard tick so it doesn't back up execution blocks
+      _sendLocation(email);
     });
   }
 
-  /// Stop tracking
+  /// Stop tracking and purge system loop allocations
   void stopTracking() {
     _timer?.cancel();
     _timer = null;
@@ -71,7 +89,7 @@ class SpLiveLocationPostController extends ChangeNotifier {
     _notify();
   }
 
-  /// Send location safely
+  /// Send location safely with concurrency protection and relaxed geolocator queries
   Future<void> _sendLocation(String email) async {
     if (_disposed || _isSending) return;
 
@@ -80,11 +98,19 @@ class SpLiveLocationPostController extends ChangeNotifier {
 
     try {
       final hasPermission = await _ensurePermission();
-      if (!hasPermission) return;
+      if (!hasPermission || _disposed || !_isTracking) return;
 
-      final position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-      );
+      // OPTIMIZATION: Swapped from getCurrentPosition (heavy hardware query) to getLastKnownPosition
+      // Falls back to standard query only if cache is completely empty.
+      Position? position = await Geolocator.getLastKnownPosition();
+      
+      position ??= await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.low, // Balanced accuracy uses significantly less battery & CPU
+          timeLimit: const Duration(seconds: 5),
+        );
+
+      // Final dynamic sanity check after operational latency gap
+      if (_disposed || !_isTracking || _currentEmail != email) return;
 
       final model = SpLiveLocationPostModel(
         email: email,
@@ -95,10 +121,10 @@ class SpLiveLocationPostController extends ChangeNotifier {
       final success = await SpLiveLocationService.sendLiveLocation(model);
 
       if (!success) {
-        debugPrint("❌ Failed to send location");
+        debugPrint("❌ Failed to send location telemetry packet");
       }
     } catch (e) {
-      debugPrint("❌ Location error: $e");
+      debugPrint("❌ Location tracking exception caught: $e");
     } finally {
       if (!_disposed) {
         _isSending = false;
@@ -107,27 +133,18 @@ class SpLiveLocationPostController extends ChangeNotifier {
     }
   }
 
-  /// Handle permission safely
+  /// Handle permission constraints gracefully
   Future<bool> _ensurePermission() async {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) {
-      debugPrint("⚠️ Location services disabled");
-      return false;
-    }
+    if (!serviceEnabled) return false;
 
     LocationPermission permission = await Geolocator.checkPermission();
-
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
     }
 
-    if (permission == LocationPermission.denied ||
-        permission == LocationPermission.deniedForever) {
-      debugPrint("⚠️ Location permission denied");
-      return false;
-    }
-
-    return true;
+    return permission != LocationPermission.denied && 
+           permission != LocationPermission.deniedForever;
   }
 
   void _notify() {
@@ -137,6 +154,7 @@ class SpLiveLocationPostController extends ChangeNotifier {
   @override
   void dispose() {
     _timer?.cancel();
+    _timer = null;
     _disposed = true;
     super.dispose();
   }

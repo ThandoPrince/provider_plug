@@ -1,12 +1,13 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter_application_2/common/models/provider_login_response_model.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 
 class SPLoginApi {
   final String baseUrl = dotenv.env['API_BASE_URL'] ?? '';
 
-  Future<Map<String, dynamic>> login({
+  Future<ProviderLoginResponseModel?> login({
     required String email,
     required String password,
   }) async {
@@ -18,7 +19,7 @@ class SPLoginApi {
             url,
             headers: {"Content-Type": "application/json"},
             body: jsonEncode({
-              "email": email.toLowerCase(),
+              "identifier": email.toLowerCase(),
               "password": password,
             }),
           )
@@ -27,18 +28,14 @@ class SPLoginApi {
       final data = jsonDecode(response.body);
 
       if (response.statusCode == 200) {
-        return {"success": true, "data": data};
+        return ProviderLoginResponseModel.fromJson(data);
       } else {
-        return {
-          "success": false,
-          "message": data["message"] ?? "Invalid credentials",
-          "errors": data["errors"],
-        };
+        return null;
       }
     } on SocketException {
-      return {"success": false, "message": "No internet connection"};
+      return null;
     } catch (e) {
-      return {"success": false, "message": "An unexpected error occurred"};
+      return null;
     }
   }
 
@@ -46,19 +43,26 @@ class SPLoginApi {
     required String email,
     required String token,
     required String provider,
+    required String authToken, // Made required to guarantee auth context availability
     String? deviceType,
     String? deviceName,
     String? osVersion,
     String? appVersion,
   }) async {
-    final uri = Uri.parse(
-      '$baseUrl/sp/register/device-token/',
-    );
+    final uri = Uri.parse('$baseUrl/sp/register/device-token/');
+
+    // Build map cleanly outside literal to keep compiler happy
+    final Map<String, String> requestHeaders = {
+      'Content-Type': 'application/json',
+    };
+    if (authToken.isNotEmpty) {
+      requestHeaders['Authorization'] = 'Bearer $authToken';
+    }
 
     try {
       final response = await http.post(
         uri,
-        headers: {'Content-Type': 'application/json'},
+        headers: requestHeaders,
         body: jsonEncode({
           "email": email.toLowerCase(),
           "push_token": token,
@@ -79,9 +83,7 @@ class SPLoginApi {
     } catch (e) {
       return {
         "statusCode": 500,
-        "data": {
-          "error": "Failed to update push token: $e",
-        },
+        "data": {"error": "Failed to update push token: $e"},
       };
     }
   }

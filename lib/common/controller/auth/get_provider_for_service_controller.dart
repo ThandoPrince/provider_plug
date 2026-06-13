@@ -34,7 +34,7 @@ class GetProviderForServiceController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final result = await _api.fetchProviderServices(email);
+      final result = await GetProviderForServiceApi.fetchProviderServices(email);
 
       if (result['success'] == true) {
         _services = (result['data'] as List<ProviderServiceModel>? ?? []);

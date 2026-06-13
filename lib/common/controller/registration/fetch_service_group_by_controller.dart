@@ -24,7 +24,7 @@ class FetchServiceGroupByController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      _groups = await api.fetchServiceGroups();
+      _groups = await FetchServiceByGroupApi.fetchServiceGroups();
     } catch (e) {
       _error = e.toString();
     } finally {

@@ -29,7 +29,7 @@ class FetchAuthController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final result = await _api.fetchSPProfile(email);
+      final result = await FetchAuthApi.fetchSPProfile(email);
 
       if (result['success'] == true) {
         _profile = result['data'] as SPProfileModel;

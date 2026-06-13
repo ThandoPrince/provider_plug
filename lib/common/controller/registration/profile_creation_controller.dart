@@ -39,7 +39,7 @@ class SPProfileCreationController extends ChangeNotifier {
       };
 
       final response = await _apiHelper.patchSPProfile(
-        email: email,
+       
         data: data,
         profileImage: profileImage,
       );

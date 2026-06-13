@@ -42,8 +42,8 @@ class _CreateServiceScreenState extends State<CreateServiceScreen> {
     setState(() => _isSubmitting = true);
 
     try {
-      final response = await LinkServiceApi().submitService(
-        email: widget.providerEmail,
+      final response = await LinkServiceApi.submitService(
+        
         serviceName: _serviceNameController.text.trim(),
         serviceGroupId: _selectedGroupId!,
       );

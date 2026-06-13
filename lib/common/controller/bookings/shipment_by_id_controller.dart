@@ -27,7 +27,7 @@ class ShipmentByIdController extends ChangeNotifier {
     _safeNotify();
 
     try {
-      final result = await api.fetchShipmentById(shipmentId);
+      final result = await ShipmentByIdApi.fetchShipmentById(shipmentId);
 
       if (_disposed) return null;
 

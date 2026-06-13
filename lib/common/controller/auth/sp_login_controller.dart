@@ -4,6 +4,7 @@ import 'package:device_info_plus/device_info_plus.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_application_2/common/controller/auth/auth_session_controller.dart';
+import 'package:flutter_application_2/common/models/provider_login_response_model.dart';
 import 'package:flutter_application_2/common/services/sp_login_api.dart';
 import 'package:flutter_application_2/screens/splash/views/splash_screen.dart';
 import 'package:huawei_push/huawei_push.dart';
@@ -14,7 +15,10 @@ class SPLoginController extends ChangeNotifier {
 
   bool _isLoading = false;
   bool get isLoading => _isLoading;
-
+  
+  ProviderLoginResponseModel? _user;
+  ProviderLoginResponseModel? get user => _user;
+  
   String? _errorMessage;
   String? get errorMessage => _errorMessage;
 
@@ -37,14 +41,24 @@ class SPLoginController extends ChangeNotifier {
         password: password,
       );
 
-      if (result["success"] == true) {
-        await AuthSessionController.instance.setSession(normalizedEmail);
+      if (result != null && result.data != null) {
+        _user = result;
+        
+        final String freshAccessToken = result.data!.accessToken;
 
-        await _fetchAndSendPushToken(normalizedEmail);
+        await AuthSessionController.instance.setSession(
+          id: result.data!.id,
+          email: result.data!.email,
+          accessToken: freshAccessToken,
+          refreshToken: result.data!.refreshToken,
+        );
+
+        // Explicitly cascade the working access token to prevent 401 log events
+        await _fetchAndSendPushToken(normalizedEmail, freshAccessToken);
 
         return true;
       } else {
-        _errorMessage = result["message"] ?? "Login failed";
+        _errorMessage = "Login failed";
         return false;
       }
     } catch (e) {
@@ -56,7 +70,7 @@ class SPLoginController extends ChangeNotifier {
     }
   }
 
-  Future<void> _fetchAndSendPushToken(String email) async {
+  Future<void> _fetchAndSendPushToken(String email, String dynamicAuthToken) async {
     if (!Platform.isAndroid) return;
 
     final deviceInfo = await _getDeviceInfo();
@@ -64,47 +78,30 @@ class SPLoginController extends ChangeNotifier {
 
     try {
       if (useHuaweiPush) {
-        if (kDebugMode) {
-          print("Huawei device detected → using Huawei Push");
-        }
+        if (kDebugMode) print("Huawei device detected → using Huawei Push");
 
         await _huaweiTokenSubscription?.cancel();
-
         _huaweiTokenSubscription = Push.getTokenStream.listen(
           (String token) async {
             if (token.isEmpty) return;
-
-            if (kDebugMode) {
-              print("Huawei Push Token: $token");
-            }
 
             final result = await _api.updatePushToken(
               email: email,
               token: token,
               provider: 'huawei',
+              authToken: dynamicAuthToken,
               deviceType: deviceInfo['deviceType'],
               deviceName: deviceInfo['deviceName'],
               osVersion: deviceInfo['osVersion'],
               appVersion: appVersion,
             );
 
-            if (result['statusCode'] != 200 && result['statusCode'] != 201) {
-              if (kDebugMode) {
-                print(
-                  "Huawei push token registration FAILED: "
-                  "${result['statusCode']} → ${result['data']}",
-                );
-              }
-            } else {
-              if (kDebugMode) {
-                print("Huawei push token registered successfully");
-              }
+            if (kDebugMode && result['statusCode'] != 200 && result['statusCode'] != 201) {
+              print("Huawei registration failed: ${result['statusCode']} -> ${result['data']}");
             }
           },
           onError: (e) {
-            if (kDebugMode) {
-              print("Huawei token stream error: $e");
-            }
+            if (kDebugMode) print("Huawei token stream error: $e");
           },
         );
 
@@ -112,9 +109,7 @@ class SPLoginController extends ChangeNotifier {
         return;
       }
 
-      if (kDebugMode) {
-        print("Google device detected → using Firebase");
-      }
+      if (kDebugMode) print("Google device detected → using Firebase");
 
       await FirebaseMessaging.instance.requestPermission(
         alert: true,
@@ -125,63 +120,41 @@ class SPLoginController extends ChangeNotifier {
       final token = await FirebaseMessaging.instance.getToken();
 
       if (token != null && token.isNotEmpty) {
-        if (kDebugMode) {
-          print("Firebase Token: $token");
-        }
-
         final result = await _api.updatePushToken(
           email: email,
           token: token,
           provider: 'firebase',
+          authToken: dynamicAuthToken,
           deviceType: deviceInfo['deviceType'],
           deviceName: deviceInfo['deviceName'],
           osVersion: deviceInfo['osVersion'],
           appVersion: appVersion,
         );
 
-        if (result['statusCode'] != 200 && result['statusCode'] != 201) {
-          if (kDebugMode) {
-            print(
-              "Firebase push token registration FAILED: "
-              "${result['statusCode']} → ${result['data']}",
-            );
-          }
-        } else {
-          if (kDebugMode) {
-            print("Firebase push token registered successfully");
-          }
-        }
-      } else {
-        if (kDebugMode) {
-          print("Firebase token is null or empty");
+        if (kDebugMode && result['statusCode'] != 200 && result['statusCode'] != 201) {
+          print("Firebase registration failed: ${result['statusCode']} -> ${result['data']}");
         }
       }
 
+      // Handle hot token rotations dynamically
       await _firebaseTokenRefreshSubscription?.cancel();
-      _firebaseTokenRefreshSubscription =
-          FirebaseMessaging.instance.onTokenRefresh.listen((newToken) async {
-        if (kDebugMode) {
-          print("Firebase Token Refreshed: $newToken");
-        }
-
-        final result = await _api.updatePushToken(
+      _firebaseTokenRefreshSubscription = FirebaseMessaging.instance.onTokenRefresh.listen((newToken) async {
+        // Fallback to active runtime configuration string if session has run long
+        final activeToken = AuthSessionController.instance.accessToken ?? dynamicAuthToken;
+        
+        await _api.updatePushToken(
           email: email,
           token: newToken,
           provider: 'firebase',
+          authToken: activeToken,
           deviceType: deviceInfo['deviceType'],
           deviceName: deviceInfo['deviceName'],
           osVersion: deviceInfo['osVersion'],
           appVersion: appVersion,
         );
-
-        if (kDebugMode) {
-          print("Firebase refreshed token registration result: $result");
-        }
       });
     } catch (e) {
-      if (kDebugMode) {
-        print("Push token error: $e");
-      }
+      if (kDebugMode) print("Push token parsing error context: $e");
     }
   }
 
@@ -192,7 +165,6 @@ class SPLoginController extends ChangeNotifier {
 
     try {
       final deviceInfoPlugin = DeviceInfoPlugin();
-
       if (Platform.isAndroid) {
         final androidInfo = await deviceInfoPlugin.androidInfo;
         deviceName = androidInfo.model;
@@ -203,9 +175,7 @@ class SPLoginController extends ChangeNotifier {
         osVersion = iosInfo.systemVersion;
       }
     } catch (e) {
-      if (kDebugMode) {
-        print("Device info error: $e");
-      }
+      if (kDebugMode) print("Device info error: $e");
     }
 
     return {
@@ -219,9 +189,6 @@ class SPLoginController extends ChangeNotifier {
     try {
       return (await PackageInfo.fromPlatform()).version;
     } catch (e) {
-      if (kDebugMode) {
-        print("App version error: $e");
-      }
       return '';
     }
   }

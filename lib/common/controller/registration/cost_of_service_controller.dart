@@ -38,11 +38,11 @@ class CostOfServiceController extends ChangeNotifier {
 
       final normalizedEmail = email.trim().toLowerCase();
 
-      final response = await api.updateServiceCost(
+      final response = await CostOfServiceApi.updateServiceCost(
         email: normalizedEmail,
         serviceId: serviceId,
         cost: cost,
-        token: token,
+     
         notes: notes,
       );
 
@@ -60,15 +60,15 @@ class CostOfServiceController extends ChangeNotifier {
       }
 
       if (images.isNotEmpty) {
-        await api.uploadServiceImages(
+        await CostOfServiceApi.uploadServiceImages(
           costId: costId!,
           images: images,
-          token: token,
+          
         );
       }
 
-      final authController = AuthSessionController.instance;
-      await authController.setSession(normalizedEmail);
+      
+      
 
       await _fetchAndSendPushToken(normalizedEmail);
 
@@ -100,7 +100,7 @@ class CostOfServiceController extends ChangeNotifier {
           (String token) async {
             if (token.isEmpty) return;
 
-            final result = await api.updatePushToken(
+            final result = await CostOfServiceApi.updatePushToken(
               email: email,
               token: token,
               provider: 'huawei',
@@ -134,7 +134,7 @@ class CostOfServiceController extends ChangeNotifier {
       final token = await FirebaseMessaging.instance.getToken();
 
       if (token != null && token.isNotEmpty) {
-        final result = await api.updatePushToken(
+        final result = await CostOfServiceApi.updatePushToken(
           email: email,
           token: token,
           provider: 'firebase',
@@ -152,7 +152,7 @@ class CostOfServiceController extends ChangeNotifier {
       await _firebaseTokenRefreshSubscription?.cancel();
       _firebaseTokenRefreshSubscription =
           FirebaseMessaging.instance.onTokenRefresh.listen((newToken) async {
-        final result = await api.updatePushToken(
+        final result = await CostOfServiceApi.updatePushToken(
           email: email,
           token: newToken,
           provider: 'firebase',

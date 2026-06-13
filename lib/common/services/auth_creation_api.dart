@@ -17,32 +17,34 @@ class AuthCreationApiHelper {
         url,
         headers: {"Content-Type": "application/json"},
         body: jsonEncode({
-          "email_address": email.toLowerCase(),
+          "email_address": email.trim().toLowerCase(),
           "password": password,
-          "mobile_number": mobileNumber,
-        
+          "mobile_number": mobileNumber.trim(),
         }),
       );
 
-      final data = jsonDecode(response.body);
+      final dynamic dynamicBody = jsonDecode(response.body);
+      if (dynamicBody is! Map) {
+        return {"success": false, "message": "Unexpected server response layout."};
+      }
+      
+      final Map<String, dynamic> body = Map<String, dynamic>.from(dynamicBody);
 
       if (response.statusCode == 201) {
-        return {"success": true, "data": data};
+        return {"success": true, "data": body};
       } else {
-       
         String errorMessage = "Registration failed";
         
-        if (data is Map) {
-          if (data.containsKey('errors')) {
-            
-            var errorData = data['errors'];
-            if (errorData is Map) {
-            
-              errorMessage = errorData.values.first[0];
+        if (body.containsKey('errors')) {
+          final errorData = body['errors'];
+          if (errorData is Map && errorData.isNotEmpty) {
+            final firstErrorList = errorData.values.first;
+            if (firstErrorList is List && firstErrorList.isNotEmpty) {
+              errorMessage = firstErrorList.first.toString();
             }
-          } else if (data.containsKey('message')) {
-            errorMessage = data['message'];
           }
+        } else if (body.containsKey('message')) {
+          errorMessage = body['message'].toString();
         }
         
         return {"success": false, "message": errorMessage};

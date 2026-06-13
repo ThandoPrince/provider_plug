@@ -22,7 +22,7 @@ class SPAddressDocumentController extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
 
-    final response = await _apiHelper.addAddressDocument(
+    final response = await SPAddressDocumentApiHelper.addAddressDocument(
       email: email,
       address: address,
       idType: idType,
