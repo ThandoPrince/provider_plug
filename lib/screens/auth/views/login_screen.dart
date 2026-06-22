@@ -217,6 +217,31 @@ class _SPLoginScreenState extends State<SPLoginScreen> {
                                   ),
                                 ),
       
+      const SizedBox(height: 20),
+
+Align(
+  alignment: Alignment.centerRight,
+  child: TextButton(
+    onPressed: () {
+      context.push('/reset_password');
+    },
+    style: TextButton.styleFrom(
+      padding: EdgeInsets.zero,
+      minimumSize: Size.zero,
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    ),
+    child: const Text(
+      'Forgot Password?',
+      style: TextStyle(
+        color: Colors.white,
+        fontWeight: FontWeight.w600,
+        decoration: TextDecoration.underline,
+      ),
+    ),
+  ),
+),
+
+const SizedBox(height: 20),
                                 const Spacer(),
       
                                 _buildLoginButton(controller),

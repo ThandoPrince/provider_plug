@@ -36,6 +36,11 @@ final GoRouter _router = GoRouter(
       builder: (context, state) => const OnboardingScreen(),
     ),
 
+//     GoRoute(
+//   path: '/reset_password',
+//   builder: (context, state) => const ResetPasswordScreen(),
+// ),
+
     GoRoute(
       path: '/welcome',
       builder: (context, state) => const OnboardingScreen(),
