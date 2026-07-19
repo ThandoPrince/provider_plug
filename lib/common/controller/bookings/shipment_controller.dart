@@ -21,13 +21,13 @@ class ShipmentController extends ChangeNotifier {
   }
 
   /// Fetch shipments and merge diff (update existing, add new)
-  Future<void> fetchShipments(String providerEmail) async {
+  Future<void> fetchShipments() async {
     isLoading = true;
     errorMessage = null;
     _safeNotify();
 
     try {
-      final data = await ShipmentApi.getShipmentsByProvider(providerEmail);
+      final data = await ShipmentApi.getShipmentsByProvider();
 
       if (_disposed) return;
 

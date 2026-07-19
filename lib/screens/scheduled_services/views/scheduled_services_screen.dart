@@ -6,8 +6,8 @@ import 'package:flutter_application_2/screens/scheduled_services/widgets/schedul
 import 'package:provider/provider.dart';
 
 class ScheduledOrdersScreen extends StatefulWidget {
-  final String email;
-  const ScheduledOrdersScreen({super.key, required this.email});
+  final int providerID;
+  const ScheduledOrdersScreen({super.key, required this.providerID});
 
   @override
   State<ScheduledOrdersScreen> createState() => _ScheduledOrdersScreenState();
@@ -21,7 +21,7 @@ class _ScheduledOrdersScreenState extends State<ScheduledOrdersScreen> {
   void initState() {
     super.initState();
     _controller = ShipmentController();
-    _controller.fetchShipments(widget.email);
+    _controller.fetchShipments();
   }
 
   @override
@@ -31,7 +31,7 @@ class _ScheduledOrdersScreenState extends State<ScheduledOrdersScreen> {
   }
 
   Future<void> _refresh() async {
-    await _controller.fetchShipments(widget.email);
+    await _controller.fetchShipments();
   }
 
   void _onScroll(ScrollNotification notification) {

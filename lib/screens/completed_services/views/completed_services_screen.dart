@@ -7,11 +7,11 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:provider/provider.dart';
 
 class ProviderRatingsScreen extends StatefulWidget {
-  final String providerEmail;
+  
 
   const ProviderRatingsScreen({
     Key? key,
-    required this.providerEmail,
+    
   }) : super(key: key);
 
   @override
@@ -27,7 +27,7 @@ class _ProviderRatingsScreenState extends State<ProviderRatingsScreen> {
       if (!mounted) return;
       context
           .read<ProviderRatingsController>()
-          .fetchRatings(widget.providerEmail);
+          .fetchRatings();
     });
   }
 

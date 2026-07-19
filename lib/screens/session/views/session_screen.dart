@@ -3,12 +3,13 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_application_2/common/models/models/order_service_models/session_model.dart';
-import 'package:flutter_application_2/common/controller/bookings/session_location_ping_controller.dart';
+
 import 'package:flutter_application_2/common/controller/bookings/session_status_controller.dart';
 import 'package:flutter_application_2/common/services/session_by_shipment_api.dart';
+import 'package:flutter_application_2/common/services/session_socket_service.dart';
 import 'package:flutter_application_2/screens/scheduled_services_details/widgets/schedule_flushbar_widget.dart';
 import 'package:flutter_application_2/screens/session/widgets/client_profile_row.dart';
-import 'package:flutter_application_2/screens/session/widgets/session_components.dart';
+
 import 'package:flutter_application_2/screens/session/widgets/session_helpers.dart';
 import 'package:flutter_application_2/screens/ratings_screen/views/ratings_screen.dart';
 import 'package:geolocator/geolocator.dart';
@@ -18,13 +19,14 @@ import 'package:flutter_application_2/common/utils/kcolors.dart';
 
 class SessionScreen extends StatefulWidget {
   final SessionModel session;
-  final String? providerEmail;
+  final SessionSocketService sessionSocket;
+  
   final Position? initialLocation;
 
   const SessionScreen({
     super.key,
     required this.session,
-    required this.providerEmail,
+   required this.sessionSocket,
     this.initialLocation,
   });
 
@@ -34,51 +36,106 @@ class SessionScreen extends StatefulWidget {
 
 class _SessionScreenState extends State<SessionScreen> {
   late Timer _timer;
-  Timer? _pingTimer;
-  Timer? _pollTimer;
+Timer? _pollTimer;
   late Duration _elapsed;
-
+  
+Timer? _geofenceTimer;
+bool _isOutsideGeofence = false;
+double? _distanceFromSite;
   bool get isCompleted => widget.session.checkoutTime != null;
 
   @override
-  void initState() {
-    super.initState();
-    _elapsed = Duration(seconds: widget.session.durationSeconds ?? 0);
+void initState() {
+  super.initState();
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
+  _elapsed = Duration(seconds: widget.session.durationSeconds ?? 0);
+  widget.sessionSocket.onMessage = _handleSocketMessage;
 
-      final controller = context.read<SessionLocationPingController>();
+  widget.sessionSocket.onDisconnected = () {
+    debugPrint("Session socket disconnected");
+  };
 
-      if (widget.initialLocation != null) {
-        controller.postPing(
-          sessionId: widget.session.sessionId!,
-          latitude: widget.initialLocation!.latitude,
-          longitude: widget.initialLocation!.longitude,
-          accuracy: widget.initialLocation!.accuracy,
-          session: widget.session,
-          siteLatitude: widget.session.shipment?.serviceOrdered?.order?.deliveryAddress?.latitude ?? 0,
-          siteLongitude: widget.session.shipment?.serviceOrdered?.order?.deliveryAddress?.longitude ?? 0,
-        );
-      }
-    });
+  widget.sessionSocket.onError = (e) {
+    debugPrint("Session socket error: $e");
+  };
+
+  
 
     if (!isCompleted) {
-      _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-        if (mounted) setState(() => _elapsed += const Duration(seconds: 1));
+  _timer = Timer.periodic(
+    const Duration(seconds: 1),
+    (_) {
+      if (mounted) {
+        setState(() => _elapsed += const Duration(seconds: 1));
+      }
+    },
+  );
+
+  _pollTimer = Timer.periodic(
+    const Duration(seconds: 20),
+    (_) => _pollSession(),
+  );
+
+  _geofenceTimer = Timer.periodic(
+    const Duration(seconds: 20),
+    (_) => _sendGeofencePing(),
+  );
+
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    _sendGeofencePing(); // first ping immediately
+  });
+}
+  }
+
+
+  void _handleSocketMessage(Map<String, dynamic> message) {
+  switch (message["type"]) {
+    case "geofence_ping_ack":
+      final data = message["data"] as Map<String, dynamic>? ?? {};
+
+      final inside = data["inside_geofence"] == true;
+      final distance =
+          (data["distance_from_site_meters"] as num?)?.toDouble();
+
+      debugPrint(
+          "ACK -> inside=$inside distance=$distance");
+
+      if (!mounted) return;
+
+      setState(() {
+        _isOutsideGeofence = !inside;
+        _distanceFromSite = inside ? null : distance;
       });
 
-      _pingTimer = Timer.periodic(const Duration(seconds: 20), (_) => _sendPing());
-      _pollTimer = Timer.periodic(const Duration(seconds: 20), (_) => _pollSession());
-    }
+      break;
   }
+}
+
+  Future<void> _sendGeofencePing() async {
+  try {
+    if (!widget.sessionSocket.isConnected) {
+      return;
+    }
+
+    final pos = await Geolocator.getCurrentPosition(
+      desiredAccuracy: LocationAccuracy.high,
+    );
+
+    widget.sessionSocket.sendGeofencePing(
+      latitude: pos.latitude,
+      longitude: pos.longitude,
+      accuracy: pos.accuracy,
+    );
+  } catch (e) {
+    debugPrint("❌ Failed to send geofence ping: $e");
+  }
+}
 
   void _stopAllTimers() {
-    _pingTimer?.cancel();
-    _timer.cancel();
-    _pollTimer?.cancel();
-  }
-
+  _timer.cancel();
+  _pollTimer?.cancel();
+  _geofenceTimer?.cancel();
+}
   void _showLoadingOverlay() {
     showDialog(
       context: context,
@@ -109,26 +166,8 @@ class _SessionScreenState extends State<SessionScreen> {
     }
   }
 
-  Future<void> _sendPing() async {
-    try {
-      final pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
-      if (!mounted) return;
+  
 
-      final controller = Provider.of<SessionLocationPingController>(context, listen: false);
-
-      await controller.postPing(
-        sessionId: widget.session.sessionId!,
-        latitude: pos.latitude,
-        longitude: pos.longitude,
-        accuracy: pos.accuracy,
-        session: widget.session,
-        siteLatitude: widget.session.shipment?.serviceOrdered?.order?.deliveryAddress?.latitude ?? 0,
-        siteLongitude: widget.session.shipment?.serviceOrdered?.order?.deliveryAddress?.longitude ?? 0,
-      );
-    } catch (e) {
-      debugPrint("📍 Ping failed: $e");
-    }
-  }
 
   @override
   void dispose() {
@@ -157,6 +196,8 @@ class _SessionScreenState extends State<SessionScreen> {
       body: Column(
         children: [
           _buildLiveTimerHeader(),
+          if (_isOutsideGeofence)
+    _buildGeofenceWarning(),
           Expanded(
             child: Container(
               width: double.infinity,
@@ -216,6 +257,54 @@ class _SessionScreenState extends State<SessionScreen> {
   }
 
   // --- UI HELPER METHODS ---
+
+
+  Widget _buildGeofenceWarning() {
+  return Container(
+    width: double.infinity,
+    margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: Colors.red.shade700,
+      borderRadius: BorderRadius.circular(16),
+    ),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Icon(
+          Icons.warning_amber_rounded,
+          color: Colors.white,
+          size: 30,
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                "You are outside the service area",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                _distanceFromSite == null
+                    ? "Please return to the client's location."
+                    : "You are ${_distanceFromSite!.toStringAsFixed(1)} m away from the service location.",
+                style: const TextStyle(
+                  color: Colors.white,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+}
 
   Widget _buildLiveTimerHeader() {
     return Container(
@@ -394,19 +483,31 @@ class _SessionScreenState extends State<SessionScreen> {
           );
 
       if (success && mounted) {
-        _stopAllTimers();
-        Navigator.of(context).pop(); // Pop loading
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (_) => RatingsScreen(
-              providerEmail: widget.session.shipment?.serviceOrdered?.order?.providerForService?.provider?.spProfile?.emailAddress ?? "",
-              sessionId: widget.session.sessionId,
-              session: widget.session,
-            ),
-          ),
-        );
-      } else {
+  _stopAllTimers();
+
+  // Disconnect the session websocket permanently before leaving.
+  await widget.sessionSocket.disconnect();
+
+  Navigator.of(context).pop(); // Pop loading
+
+  Navigator.pushReplacement(
+    context,
+    MaterialPageRoute(
+      builder: (_) => RatingsScreen(
+        providerEmail: widget.session.shipment
+                ?.serviceOrdered
+                ?.order
+                ?.providerForService
+                ?.provider
+                ?.spProfile
+                ?.emailAddress ??
+            "",
+        sessionId: widget.session.sessionId,
+        session: widget.session,
+      ),
+    ),
+  );
+} else {
         Navigator.of(context).pop(); // Pop loading
         await ScheduleFlushbar.error(context, "Failed to end session. Please try again.");
       }

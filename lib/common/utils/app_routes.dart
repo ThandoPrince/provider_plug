@@ -7,6 +7,7 @@ import 'package:flutter_application_2/screens/auth/views/create_profile_screen.d
 import 'package:flutter_application_2/screens/auth/views/create_service_screen.dart';
 import 'package:flutter_application_2/screens/auth/views/login_screen.dart';
 import 'package:flutter_application_2/screens/auth/views/select_service_screen.dart';
+import 'package:flutter_application_2/screens/auth/views/upload_affidavit_screen.dart';
 import 'package:flutter_application_2/screens/completed_services/views/completed_services_screen.dart';
 import 'package:flutter_application_2/screens/entryPoint/home/views/home_screen.dart';
 import 'package:flutter_application_2/screens/entryPoint/linked_services/select_service/views/cost_of_a_service_screen.dart';
@@ -50,6 +51,13 @@ final GoRouter _router = GoRouter(
       path: '/entrypoint',
       builder: (context, state) => const EntryPoint(),
     ),
+    GoRoute(
+  path: '/providers/services/:serviceId/affidavit',
+  builder: (context, state) => UploadAffidavitScreen(
+    
+    serviceId: state.pathParameters['serviceId']!,
+  ),
+),
 
     GoRoute(
       path: '/auth_registration',
@@ -62,68 +70,69 @@ final GoRouter _router = GoRouter(
     ),
 
     GoRoute(
-      path: '/sp_patch/:email',
+      path: '/sp_patch',
       builder: (context, state) {
-        final email = state.pathParameters['email']!;
-        return SPProfilePatchScreen(email: email);
+        
+        return SPProfilePatchScreen();
       },
     ),
 
     GoRoute(
-      path: '/providers/:email/services/:serviceId/cost',
+      path: '/providers/services/:serviceId/cost',
       builder: (context, state) {
-        final email = state.pathParameters['email']!;
+        
         final serviceId = int.parse(state.pathParameters['serviceId']!);
-        return UploadServiceCostScreen(email: email, serviceId: serviceId);
+       
+        return UploadServiceCostScreen( serviceId: serviceId);
       },
     ),
 
     GoRoute(
-      path: '/providers/:email/add/:serviceId/cost',
+      path: '/providers/add/:serviceId/cost',
       builder: (context, state) {
-        final email = state.pathParameters['email']!;
+       
         final serviceId = int.parse(state.pathParameters['serviceId']!);
-        return CreateACostOfServiceScreen(email: email, serviceId: serviceId);
+        return CreateACostOfServiceScreen( serviceId: serviceId);
       },
     ),
 
     GoRoute(
-      path: '/sp_address_document/:email',
+      path: '/sp_address_document',
       builder: (context, state) {
-        final email = state.pathParameters['email']!;
-        return SPAddressDocumentScreen(email: email);
+        
+        return SPAddressDocumentScreen();
       },
     ),
 
     GoRoute(
-      path: '/sp_completed_service/:email',
+      path: '/sp_completed_service',
       builder: (context, state) {
-        final email = state.pathParameters['email']!;
-        return ProviderRatingsScreen(providerEmail: email);
+        
+        return ProviderRatingsScreen();
       },
     ),
 
     GoRoute(
-      path: '/sp_select_service/:email',
+      path: '/sp_select_service',
       builder: (context, state) {
-        final email = state.pathParameters['email']!;
-        return SelectServiceScreen(providerEmail: email);
+       
+        return SelectServiceScreen();
       },
     ),
 
     GoRoute(
-      path: '/sp_add_service/:email',
+      path: '/sp_add_service',
       builder: (context, state) {
-        final email = state.pathParameters['email']!;
-        return CreateServiceScreen(providerEmail: email);
+        
+        return CreateServiceScreen();
       },
     ),
 
     GoRoute(
-      path: '/sp_add_a_service/:email',
+      path: '/sp_add_a_service',
       builder: (context, state) {
-        final email = state.pathParameters['email']!;
-        return CreateAServiceScreen(providerEmail: email);
+        
+        return CreateAServiceScreen();
       },
     ),
 
@@ -146,10 +155,10 @@ final GoRouter _router = GoRouter(
     ),
 
     GoRoute(
-      path: '/sp_select_a_service/:email',
+      path: '/sp_select_a_service',
       builder: (context, state) {
-        final email = state.pathParameters['email']!;
-        return SelectAServiceScreen(providerEmail: email);
+        
+        return SelectAServiceScreen();
       },
     ),
   ],

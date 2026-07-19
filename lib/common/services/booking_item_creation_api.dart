@@ -1,49 +1,101 @@
 import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
+import 'package:flutter_application_2/common/controller/registration/api_client.dart';
+import 'package:flutter_application_2/common/controller/registration/api_exeption.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:http/http.dart' as http;
-import 'package:flutter_application_2/common/controller/auth/auth_session_controller.dart';
 import 'package:flutter_application_2/common/models/models/order_service_models/booking_item_model.dart';
+import 'package:http/http.dart' as http;
 
 class BookingItemCreationApi {
   static final String _baseUrl = dotenv.env['API_BASE_URL'] ?? '';
 
-  /// POST: Calls the provider negotiation acceptance endpoint with secure session headers.
+  /// POST: Provider accepts a negotiation.
   static Future<AcceptNegotiationResponse> acceptNegotiation({
     required int negotiationId,
   }) async {
-    final url = Uri.parse('$_baseUrl/bookings/service_orders/negotiation/provider_accepts_negotiation/$negotiationId/');
-    
-    // Auto-extract secure bearer token from state manager
-    final String? token = AuthSessionController.instance.accessToken;
+    final url = Uri.parse(
+      '$_baseUrl/bookings/service_orders/negotiation/provider_accepts_negotiation/$negotiationId/',
+    );
 
     try {
-      final response = await http.post(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
+      final response = await ApiClient.instance.request(
+        (token) {
+          return http.post(
+            url,
+            headers: {
+              'Accept': 'application/json',
+              'Content-Type': 'application/json',
+              if (token != null) 'Authorization': 'Bearer $token',
+            },
+          );
         },
-      ).timeout(const Duration(seconds: 15));
+      );
 
-      if (response.statusCode == 200) {
-        final dynamic decodedBody = jsonDecode(response.body);
-        if (decodedBody is Map) {
-          return AcceptNegotiationResponse.fromJson(Map<String, dynamic>.from(decodedBody));
-        }
-        throw const FormatException('Expected a JSON object container for negotiation validation updates.');
-      } else {
-        if (kDebugMode) {
-          print('❌ NEGOTIATION CREATION ACCEPTANCE REJECTED [${response.statusCode}]: ${response.body}');
-        }
-        throw Exception('Server rejected booking confirmation step with status: [${response.statusCode}]');
+      switch (response.statusCode) {
+        case 200:
+          final decoded = jsonDecode(response.body);
+
+          if (decoded is! Map<String, dynamic>) {
+            throw const FormatException(
+              'Expected a JSON object.',
+            );
+          }
+
+          return AcceptNegotiationResponse.fromJson(decoded);
+
+        case 400:
+          throw Exception(
+            'The negotiation request is invalid.',
+          );
+
+        case 401:
+          // Normally never reached because ApiClient handles refresh.
+          throw Exception(
+            'Authentication failed.',
+          );
+
+        case 403:
+          throw Exception(
+            'You are not allowed to accept this negotiation.',
+          );
+
+        case 404:
+          throw Exception(
+            'Negotiation not found.',
+          );
+
+        case 409:
+          throw Exception(
+            'This negotiation has already been accepted or is no longer available.',
+          );
+
+        case 500:
+        case 502:
+        case 503:
+          throw Exception(
+            'The server is temporarily unavailable.',
+          );
+
+        default:
+          throw Exception(
+            'Unexpected server response (${response.statusCode}).',
+          );
       }
+    } on ApiException {
+      rethrow;
+    } on FormatException {
+      rethrow;
     } catch (e) {
       if (kDebugMode) {
-        print('⚠️ Exception caught inside BookingItemCreationApi: $e');
+        debugPrint(
+          'BookingItemCreationApi.acceptNegotiation: $e',
+        );
       }
-      throw Exception('Network or formatting error confirming booking line modifications: $e');
+
+      throw Exception(
+        'Failed to accept negotiation.',
+      );
     }
   }
 }

@@ -1,6 +1,6 @@
 import 'package:flutter_application_2/common/models/models/client_models/client_address_model.dart';
 import 'package:flutter_application_2/common/models/models/client_models/client_auth.dart';
-import 'package:flutter_application_2/common/models/models/client_models/clients_details.dart';
+import 'package:flutter_application_2/common/models/models/client_models/clients_details_model.dart';
 import 'package:flutter_application_2/common/models/models/order_service_models/order_pictures_model.dart';
 import 'package:flutter_application_2/common/models/models/provider_for_service_model.dart';
 import 'package:flutter_application_2/common/models/models/service_groups.dart';
@@ -87,7 +87,7 @@ class OrderService {
     if (json['client'] != null) {
       if (json['client'] is String) {
         clientModel = ClientModel(
-          clientProfile: ClientAuthModel(emailAddress: json['client']),
+          clientProfile: ClientAuthModel(id: json['client']),
         );
       } else if (json['client'] is Map<String, dynamic>) {
         clientModel = ClientModel.fromJson(json['client']);

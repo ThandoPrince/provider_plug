@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_application_2/common/models/models/client_models/clients_details.dart';
+import 'package:flutter_application_2/common/models/models/client_models/clients_details_model.dart';
 import 'package:flutter_application_2/common/utils/kcolors.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_vector_icons/flutter_vector_icons.dart';

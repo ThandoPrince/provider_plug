@@ -15,8 +15,8 @@ import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 
 class SpProfileScreen extends StatefulWidget {
-  final String email;
-  const SpProfileScreen({super.key, required this.email});
+  
+  const SpProfileScreen({super.key, });
 
   @override
   State<SpProfileScreen> createState() => _SpProfileScreenState();
@@ -259,7 +259,7 @@ class _SpProfileScreenState extends State<SpProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
-      create: (_) => SpProfileCtrl()..fetchSPByEmail(widget.email),
+      create: (_) => SpProfileCtrl()..fetchSPByEmail(),
       child: Scaffold(
         backgroundColor: Colors.black, // Background for the gradient to sit on
         body: Container(
@@ -423,7 +423,7 @@ class _SpProfileScreenState extends State<SpProfileScreen> {
                         label: "View My Services",
                         onTap: () {
                           context.push(
-                            '/provider_linked_services?email=${Uri.encodeComponent(widget.email)}',
+                            '/provider_linked_services',
                           );
                         },
                       ),

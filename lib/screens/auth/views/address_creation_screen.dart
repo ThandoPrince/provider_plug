@@ -1,9 +1,12 @@
 import 'dart:io';
-import 'package:another_flushbar/flushbar_helper.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:camera/camera.dart';
 import 'package:flutter_application_2/common/controller/registration/address_id_doc_controller.dart';
 import 'package:flutter_application_2/common/utils/kcolors.dart';
+import 'package:flutter_application_2/common/widgets/flushbar_service.dart';
+import 'package:flutter_application_2/screens/liveness_capture/views/liveness_capture_screen.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_google_places_hoc081098/flutter_google_places_hoc081098.dart';
 import 'package:flutter_google_places_hoc081098/google_maps_webservice_places.dart';
@@ -14,8 +17,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 class SPAddressDocumentScreen extends StatefulWidget {
-  final String email;
-  const SPAddressDocumentScreen({super.key, required this.email});
+  
+  const SPAddressDocumentScreen({super.key});
 
   @override
   State<SPAddressDocumentScreen> createState() =>
@@ -27,6 +30,13 @@ class _SPAddressDocumentScreenState extends State<SPAddressDocumentScreen> {
   final TextEditingController _addressCtrl = TextEditingController();
   final TextEditingController _unitNumberCtrl = TextEditingController();
   String _buildingType = "house"; 
+
+CameraController? _cameraController;
+
+XFile? _livenessVideo;
+bool _isRecording = false;
+bool _cameraReady = false;
+
   final List<String> _buildingOptions = ["house", "apartment", "office"];
   String _idType = "card"; 
   File? _frontFile;
@@ -35,6 +45,18 @@ class _SPAddressDocumentScreenState extends State<SPAddressDocumentScreen> {
   final _picker = ImagePicker();
   static final String kGoogleApiKey = dotenv.env['GOOGLE_API_KEY'] ?? '';
   final _places = GoogleMapsPlaces(apiKey: kGoogleApiKey);
+
+  @override
+void initState() {
+  super.initState();
+  
+}
+
+
+  
+
+
+
 
   Future<void> _pickAddress() async {
     Prediction? p = await PlacesAutocomplete.show(
@@ -232,6 +254,15 @@ class _SPAddressDocumentScreenState extends State<SPAddressDocumentScreen> {
                             ],
                           ],
                         ),
+                        SizedBox(height: 16.h),
+                        _buildSectionTitle("LIVENESS CHECK", Feather.camera),
+Text(
+  "We need to confirm you're physically present.",
+  style: TextStyle(color: Colors.white38, fontSize: 13.sp),
+),
+SizedBox(height: 16.h),
+
+_buildLivenessVideoTile(),
                         SizedBox(height: 40.h),
                         _buildSubmitButton(ctrl),
                         SizedBox(height: 20.h),
@@ -246,6 +277,79 @@ class _SPAddressDocumentScreenState extends State<SPAddressDocumentScreen> {
       ),
     );
   }
+
+
+
+  Widget _buildLivenessVideoTile() {
+  return GestureDetector(
+onTap: () async {
+  final result = await Navigator.push<XFile?>(
+    context,
+    MaterialPageRoute(
+      builder: (_) => const LivenessCaptureScreen(),
+    ),
+  );
+
+  if (result != null) {
+    setState(() {
+      _livenessVideo = result;
+    });
+  }
+},
+    child: Container(
+      height: 180.h,
+      decoration: BoxDecoration(
+        color: _livenessVideo != null
+            ? Colors.green.withOpacity(0.05)
+            : Colors.white.withOpacity(0.03),
+        borderRadius: BorderRadius.circular(20.r),
+        border: Border.all(
+          color: _livenessVideo != null
+              ? Colors.greenAccent.withOpacity(0.3)
+              : Colors.white10,
+        ),
+      ),
+      child: Center(
+        child: _isRecording
+            ? Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const CircularProgressIndicator(),
+                  SizedBox(height: 10.h),
+                  const Text(
+                    "Recording liveness video...",
+                    style: TextStyle(color: Colors.white70),
+                  ),
+                ],
+              )
+            : Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    _livenessVideo != null
+                        ? Feather.check_circle
+                        : Feather.video,
+                    color: _livenessVideo != null
+                        ? Colors.greenAccent
+                        : Colors.white38,
+                    size: 32.sp,
+                  ),
+                  SizedBox(height: 10.h),
+                  Text(
+                    _livenessVideo != null
+                        ? "Liveness captured"
+                        : "Tap to record 4s liveness video",
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                ],
+              ),
+      ),
+    ),
+  );
+}
+
+
+
 
   // --- UI Components ---
 
@@ -372,7 +476,9 @@ class _SPAddressDocumentScreenState extends State<SPAddressDocumentScreen> {
       });
     }
   } catch (e) {
-    _showSnackBar("Permission denied or failed to pick image", isError: true);
+    _showFlushbar("Permission denied or failed to pick image", isError: true);
+
+
   }
 }
 
@@ -474,6 +580,7 @@ class _SPAddressDocumentScreenState extends State<SPAddressDocumentScreen> {
       ),
     );
   }
+  
 
   Widget _buildUploadTile({
     required String title,
@@ -581,16 +688,23 @@ Future<void> _submitAddressDocument() async {
   finalAddress["unit_number"] = _unitNumberCtrl.text.trim();
   finalAddress["building_type"] = _buildingType;
 
-  final success = await context.read<SPAddressDocumentController>().addAddressAndDocument(
-        email: widget.email,
-        address: finalAddress,
-        idType: _idType,
-        frontFile: _frontFile,
-        backFile: _backFile,
-      );
+  final success = await context
+    .read<SPAddressDocumentController>()
+    .addAddressAndDocument(
+      
+      address: finalAddress,
+      idType: _idType,
+      frontFile: _frontFile,
+      backFile: _backFile,
+
+      // 🔥 ADD THIS
+      livenessVideo: _livenessVideo != null
+          ? File(_livenessVideo!.path)
+          : null,
+    );
 
   if (success && mounted) {
-    context.go('/sp_select_service/${widget.email}');
+    context.go('/sp_select_service');
   } else if (mounted) {
     final errorMsg = context.read<SPAddressDocumentController>().errorMessage;
     _showError(errorMsg ?? "Registration failed. Try again.");
@@ -600,19 +714,24 @@ Future<void> _submitAddressDocument() async {
 // Replaces your old _showSnackBar with a much better Flushbar
 void _showError(String message) {
   HapticFeedback.vibrate();
-  FlushbarHelper.createError(
-    message: message,
+  FlushbarService.error(
+    context,
+    message,
     duration: const Duration(seconds: 4),
-  ).show(context);
+  );
 }
 
-  void _showSnackBar(String message, {bool isError = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: isError ? Colors.redAccent : null,
-        content: Text(message),
-        behavior: SnackBarBehavior.floating,
-      ),
+void _showFlushbar(String message, {bool isError = false}) {
+  if (isError) {
+    FlushbarService.error(
+      context,
+      message,
+    );
+  } else {
+    FlushbarService.success(
+      context,
+      message,
     );
   }
+}
 }

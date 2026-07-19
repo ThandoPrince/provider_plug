@@ -1,18 +1,20 @@
-import 'package:another_flushbar/flushbar_helper.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_application_2/common/controller/registration/link_service_controller.dart';
 import 'package:flutter_application_2/common/models/models/services_model.dart';
 import 'package:flutter_application_2/common/services/fetch_approved_services_api.dart';
 import 'package:flutter_application_2/common/utils/kcolors.dart';
+import 'package:flutter_application_2/common/widgets/flushbar_service.dart';
+import 'package:flutter_application_2/screens/auth/widgets/verification_prompt_sheet.dart';
 import 'package:flutter_application_2/screens/onboarding/Widgets/back_exit_widget.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:provider/provider.dart';
 
 class SelectServiceScreen extends StatefulWidget {
-  final String providerEmail;
 
-  const SelectServiceScreen({required this.providerEmail, super.key});
+
+  const SelectServiceScreen({ super.key});
 
   @override
   State<SelectServiceScreen> createState() => _SelectServiceScreenState();
@@ -322,26 +324,40 @@ class _SelectServiceScreenState extends State<SelectServiceScreen> {
       ),
       child: SafeArea(
       child: InkWell(
-        onTap: controller.isLoading ? null : () async { // Prevent double-tap
-          if (_selectedService != null) {
-            final success = await controller.submitService(
-              email: widget.providerEmail,
-              serviceName: _selectedService!.serviceName!,
-              serviceGroupId: _selectedService!.serviceGroup?.groupId,
-            );
+        onTap: controller.isLoading ? null : () async {
+  if (_selectedService != null) {
+   final success = await controller.submitService(
 
-            if (success && mounted) {
-              context.go('/providers/${widget.providerEmail}/services/${_selectedService!.serviceId}/cost');
-            } else if (mounted) {
-              // SHOW ACTUAL ERROR MESSAGE FROM CONTROLLER
-              FlushbarHelper.createError(
-                message: controller.message ?? 'Failed to link service',
-              ).show(context);
-            }
-          } else {
-            context.push('/sp_add_service/${widget.providerEmail}');
-          }
-        },
+  serviceName: _selectedService!.serviceName!,
+  serviceGroupId: _selectedService!.serviceGroup?.groupId,
+);
+
+if (success && mounted) {
+  VerificationPromptSheet.show(
+    context: context,
+    
+    providerServiceId: controller.providerServiceId!,
+    serviceId: _selectedService!.serviceId.toString(),
+    onContinue: () {
+      if (mounted) {
+        context.go(
+          '/providers/services/${_selectedService!.serviceId}/cost',
+        );
+      }
+    },
+  
+      );
+    } else if (mounted) {
+      FlushbarService.error(
+        context,
+        controller.message ?? 'Failed to link service',
+        duration: const Duration(seconds: 4),
+      );
+    }
+  } else {
+    context.push('/sp_add_service');
+  }
+},
         child: Container(
           width: double.infinity,
           height: 58,

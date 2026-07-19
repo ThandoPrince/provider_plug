@@ -13,7 +13,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthSessionController>();
-    final email = auth.email;
+    
 
     return AppBar(
       backgroundColor: Colors.transparent,
@@ -40,7 +40,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
         style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
       ),
 
-      actions: [ProviderActiveToggle(email: email.toString())],
+      actions: const [ProviderActiveToggle()],
     );
   }
 

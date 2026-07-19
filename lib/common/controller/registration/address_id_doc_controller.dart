@@ -12,23 +12,33 @@ class SPAddressDocumentController extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
 
   Future<bool> addAddressAndDocument({
-    required String email,
-    required Map<String, dynamic> address,
-    required String idType,
-    File? frontFile,
-    File? backFile,
-  }) async {
+ 
+  required Map<String, dynamic> address,
+  required String idType,
+  File? frontFile,
+  File? backFile,
+  File? livenessVideo, // 🔥 NEW
+}) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
+    if (livenessVideo != null) {
+  debugPrint("========== LIVENESS ==========");
+  debugPrint("Path: ${livenessVideo.path}");
+  debugPrint("Exists: ${await livenessVideo.exists()}");
+  debugPrint("Length: ${await livenessVideo.length()}");
+  debugPrint("==============================");
+}
+
     final response = await SPAddressDocumentApiHelper.addAddressDocument(
-      email: email,
-      address: address,
-      idType: idType,
-      frontFile: frontFile,
-      backFile: backFile, // just pass null if Greenbook
-    );
+ 
+  address: address,
+  idType: idType,
+  frontFile: frontFile,
+  backFile: backFile,
+  livenessVideo: livenessVideo, 
+);
 
     _isLoading = false;
 

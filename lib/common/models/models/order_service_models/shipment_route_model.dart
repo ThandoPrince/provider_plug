@@ -1,3 +1,5 @@
+import 'package:flutter_application_2/screens/schedule_directions/widgets/here_map_controller.dart';
+
 class ShipmentRoute {
   final int routeId;
   final int shipmentId;
@@ -77,5 +79,20 @@ class ShipmentRoute {
       "created_at": createdAt?.toIso8601String(),
       if (travelMode != null) 'travel_mode': travelMode,
     };
+  }
+}
+
+
+TravelMode travelModeFromString(String? mode) {
+  switch (mode?.toLowerCase()) {
+    case "pedestrian":
+      return TravelMode.pedestrian;
+    case "bicycle":
+      return TravelMode.bicycle;
+    case "scooter":
+      return TravelMode.scooter;
+    case "car":
+    default:
+      return TravelMode.car;
   }
 }

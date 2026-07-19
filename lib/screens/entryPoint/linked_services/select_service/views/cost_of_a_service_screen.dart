@@ -1,9 +1,11 @@
 import 'dart:io';
 
 import 'package:another_flushbar/flushbar_helper.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_application_2/common/controller/sp_contollers/cost_of_a_service_controller.dart';
+import 'package:flutter_application_2/common/controller/registration/provider_qualification_controller.dart';
 
 import 'package:flutter_application_2/common/utils/kcolors.dart';
 import 'package:flutter_application_2/screens/entryPoint/linked_services/select_service/views/service_added_overlay.dart';
@@ -13,13 +15,50 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
+/// One document the provider has attached in this session — tracks its
+/// own upload lifecycle independently so one failure doesn't block others.
+class _QualificationDraft {
+  final File file;
+  final String fileName;
+  String title;
+  String documentType;
+  String issuingBody;
+  DateTime? issueDate;
+  DateTime? expiryDate;
+
+  _QualificationUploadStatus status;
+  String? errorMessage;
+
+  _QualificationDraft({
+    required this.file,
+    required this.fileName,
+    required this.title,
+    required this.documentType,
+    this.issuingBody = "",
+    this.issueDate,
+    this.expiryDate,
+    this.status = _QualificationUploadStatus.pending,
+    this.errorMessage,
+  });
+}
+
+enum _QualificationUploadStatus { pending, uploading, uploaded, failed }
+
+const List<Map<String, String>> _kDocumentTypes = [
+  {"value": "certificate", "label": "Certificate"},
+  {"value": "license", "label": "License"},
+  {"value": "insurance", "label": "Insurance"},
+  {"value": "reference", "label": "Reference Letter"},
+  {"value": "other", "label": "Other"},
+];
+
 class CreateACostOfServiceScreen extends StatefulWidget {
-  final String email;
+  
   final int serviceId;
 
   const CreateACostOfServiceScreen({
     Key? key,
-    required this.email,
+    
     required this.serviceId,
   }) : super(key: key);
 
@@ -35,6 +74,8 @@ class _CreateACostOfServiceScreenState extends State<CreateACostOfServiceScreen>
 
   final ImagePicker _picker = ImagePicker();
   final List<File> _serviceImages = [];
+
+  final List<_QualificationDraft> _qualifications = [];
 
   @override
   void dispose() {
@@ -85,12 +126,307 @@ class _CreateACostOfServiceScreenState extends State<CreateACostOfServiceScreen>
     });
   }
 
- 
+  // =========================================================
+  // Professional documents / references
+  // =========================================================
+
+  Future<void> _pickQualificationDocument() async {
+    if (_qualifications.length >= 5) {
+      _showError('You can attach a maximum of 5 documents.');
+      return;
+    }
+
+    final result = await FilePicker.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx'],
+    );
+
+    if (result == null || result.files.single.path == null) return;
+
+    final file = File(result.files.single.path!);
+    final fileName = result.files.single.name;
+
+    if (!mounted) return;
+
+    final details = await _showQualificationDetailsSheet(fileName: fileName);
+    if (details == null) return; // user cancelled
+
+    final draft = _QualificationDraft(
+      file: file,
+      fileName: fileName,
+      title: details['title'] as String,
+      documentType: details['documentType'] as String,
+      issuingBody: details['issuingBody'] as String,
+      issueDate: details['issueDate'] as DateTime?,
+      expiryDate: details['expiryDate'] as DateTime?,
+    );
+
+    setState(() => _qualifications.add(draft));
+    _uploadQualification(draft);
+  }
+
+  Future<Map<String, dynamic>?> _showQualificationDetailsSheet({
+    required String fileName,
+  }) {
+    final titleController = TextEditingController();
+    final issuingBodyController = TextEditingController();
+    String documentType = _kDocumentTypes.first['value']!;
+    DateTime? issueDate;
+    DateTime? expiryDate;
+
+    return showModalBottomSheet<Map<String, dynamic>>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (sheetContext, setSheetState) {
+            Future<void> pickDate({required bool isIssueDate}) async {
+              final picked = await showDatePicker(
+                context: sheetContext,
+                initialDate: DateTime.now(),
+                firstDate: DateTime(1990),
+                lastDate: DateTime(2100),
+              );
+              if (picked != null) {
+                setSheetState(() {
+                  if (isIssueDate) {
+                    issueDate = picked;
+                  } else {
+                    expiryDate = picked;
+                  }
+                });
+              }
+            }
+
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(sheetContext).viewInsets.bottom,
+              ),
+              child: Container(
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                ),
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.description_outlined,
+                              color: Kolors.kPrimary),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              fileName,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+                      _sheetLabel("TITLE"),
+                      TextField(
+                        controller: titleController,
+                        decoration: _sheetInputDecoration("e.g. Electrical Trade Certificate"),
+                      ),
+                      const SizedBox(height: 16),
+                      _sheetLabel("DOCUMENT TYPE"),
+                      DropdownButtonFormField<String>(
+                        value: documentType,
+                        decoration: _sheetInputDecoration(null),
+                        items: _kDocumentTypes
+                            .map((t) => DropdownMenuItem(
+                                  value: t['value'],
+                                  child: Text(t['label']!),
+                                ))
+                            .toList(),
+                        onChanged: (v) {
+                          if (v != null) setSheetState(() => documentType = v);
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      _sheetLabel("ISSUING BODY (OPTIONAL)"),
+                      TextField(
+                        controller: issuingBodyController,
+                        decoration: _sheetInputDecoration("e.g. Dept. of Labour"),
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _datePickerField(
+                              label: "ISSUE DATE",
+                              value: issueDate,
+                              onTap: () => pickDate(isIssueDate: true),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _datePickerField(
+                              label: "EXPIRY DATE",
+                              value: expiryDate,
+                              onTap: () => pickDate(isIssueDate: false),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 24),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 52,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Kolors.kPrimary,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                          onPressed: () {
+                            if (titleController.text.trim().isEmpty) {
+                              ScaffoldMessenger.of(sheetContext).showSnackBar(
+                                const SnackBar(content: Text("Title is required.")),
+                              );
+                              return;
+                            }
+                            Navigator.pop(sheetContext, {
+                              'title': titleController.text.trim(),
+                              'documentType': documentType,
+                              'issuingBody': issuingBodyController.text.trim(),
+                              'issueDate': issueDate,
+                              'expiryDate': expiryDate,
+                            });
+                          },
+                          child: const Text(
+                            "Add Document",
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _sheetLabel(String text) => Padding(
+        padding: const EdgeInsets.only(bottom: 6, left: 2),
+        child: Text(
+          text,
+          style: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+            color: Colors.black54,
+            letterSpacing: 0.6,
+          ),
+        ),
+      );
+
+  InputDecoration _sheetInputDecoration(String? hint) => InputDecoration(
+        hintText: hint,
+        filled: true,
+        fillColor: Colors.grey.shade100,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
+        ),
+      );
+
+  Widget _datePickerField({
+    required String label,
+    required DateTime? value,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+        decoration: BoxDecoration(
+          color: Colors.grey.shade100,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.calendar_today_outlined, size: 16, color: Colors.black45),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                value == null
+                    ? label
+                    : "${value.year}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')}",
+                style: TextStyle(
+                  fontSize: 12,
+                  color: value == null ? Colors.black45 : Colors.black87,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _uploadQualification(_QualificationDraft draft) async {
+    setState(() => draft.status = _QualificationUploadStatus.uploading);
+
+    final controller = context.read<ProviderQualificationController>();
+
+    final success = await controller.uploadQualification(
+      providerServiceId: widget.serviceId,
+      document: draft.file,
+      documentType: draft.documentType,
+      title: draft.title,
+      issuingBody: draft.issuingBody,
+      issueDate: draft.issueDate,
+      expiryDate: draft.expiryDate,
+    );
+
+    if (!mounted) return;
+
+    setState(() {
+      if (success) {
+        draft.status = _QualificationUploadStatus.uploaded;
+      } else {
+        draft.status = _QualificationUploadStatus.failed;
+        draft.errorMessage = controller.errorMessage ?? "Upload failed.";
+      }
+    });
+  }
+
+  void _removeQualification(int index) {
+    setState(() => _qualifications.removeAt(index));
+    // Note: this only removes the item locally. If it already uploaded
+    // successfully server-side, deleting it there would need a separate
+    // delete endpoint — not wired up here since one wasn't provided.
+  }
+
+  // =========================================================
 
   Future<void> _submit() async {
     // 1. Check form validation
     if (!_formKey.currentState!.validate()) {
       HapticFeedback.heavyImpact();
+      return;
+    }
+
+    // Block submit while a document is actively uploading so the user
+    // doesn't navigate away mid-upload.
+    if (_qualifications.any((q) => q.status == _QualificationUploadStatus.uploading)) {
+      _showError("Please wait for document uploads to finish.");
       return;
     }
 
@@ -100,7 +436,7 @@ class _CreateACostOfServiceScreenState extends State<CreateACostOfServiceScreen>
 
     final success = await controller.updateServiceCost(
       notes: _notesController.text.trim(),
-      email: widget.email,
+      
       serviceId: widget.serviceId,
       cost: double.parse(_priceController.text.trim()),
       images: _serviceImages,
@@ -364,6 +700,65 @@ class _CreateACostOfServiceScreenState extends State<CreateACostOfServiceScreen>
                               },
                             ),
                           ),
+
+                        const SizedBox(height: 28),
+
+                        // --- Professional Documents / References ---
+                        _buildInputLabel("PROFESSIONAL DOCUMENTS & REFERENCES (OPTIONAL)"),
+                        Text(
+                          "Add certificates, licenses, insurance, or reference letters to strengthen your profile.",
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: Kolors.kOffWhite.withOpacity(0.65),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        GestureDetector(
+                          onTap: _pickQualificationDocument,
+                          child: Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.1),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.upload_file_outlined,
+                                  color: Kolors.kPrimary,
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    _qualifications.isEmpty
+                                        ? "Add a certificate, license, or reference"
+                                        : "${_qualifications.length}/5 documents added",
+                                    style: const TextStyle(
+                                      color: Kolors.kDark,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+
+                        if (_qualifications.isNotEmpty) ...[
+                          const SizedBox(height: 12),
+                          ..._qualifications.asMap().entries.map((entry) {
+                            final index = entry.key;
+                            final q = entry.value;
+                            return _buildQualificationTile(index, q);
+                          }),
+                        ],
     
                         if (controller.errorMessage != null)
                           Padding(
@@ -386,6 +781,81 @@ class _CreateACostOfServiceScreenState extends State<CreateACostOfServiceScreen>
             _buildFooterAction(controller),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildQualificationTile(int index, _QualificationDraft q) {
+    Widget statusIcon;
+    switch (q.status) {
+      case _QualificationUploadStatus.uploading:
+        statusIcon = const SizedBox(
+          width: 18,
+          height: 18,
+          child: CircularProgressIndicator(strokeWidth: 2, color: Kolors.kPrimary),
+        );
+        break;
+      case _QualificationUploadStatus.uploaded:
+        statusIcon = const Icon(Icons.check_circle_rounded, color: Colors.green, size: 20);
+        break;
+      case _QualificationUploadStatus.failed:
+        statusIcon = const Icon(Icons.error_rounded, color: Colors.redAccent, size: 20);
+        break;
+      case _QualificationUploadStatus.pending:
+        statusIcon = const Icon(Icons.schedule_rounded, color: Colors.grey, size: 20);
+        break;
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.95),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.insert_drive_file_outlined, color: Kolors.kPrimary, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  q.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                ),
+                Text(
+                  q.status == _QualificationUploadStatus.failed
+                      ? (q.errorMessage ?? "Upload failed")
+                      : q.fileName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: q.status == _QualificationUploadStatus.failed
+                        ? Colors.redAccent
+                        : Colors.grey[600],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          statusIcon,
+          if (q.status == _QualificationUploadStatus.failed)
+            IconButton(
+              icon: const Icon(Icons.refresh, size: 18, color: Kolors.kPrimary),
+              onPressed: () => _uploadQualification(q),
+              tooltip: "Retry",
+            ),
+          IconButton(
+            icon: const Icon(Icons.close, size: 18, color: Colors.grey),
+            onPressed: () => _removeQualification(index),
+            tooltip: "Remove",
+          ),
+        ],
       ),
     );
   }

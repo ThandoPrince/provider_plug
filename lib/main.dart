@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_application_2/common/controller/registration/api_client.dart';
 import 'package:flutter_application_2/common/utils/app_routes.dart';
 import 'package:flutter_application_2/screens/splash/views/app_providers.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -6,6 +7,10 @@ import 'package:provider/provider.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  ApiClient.instance.setSessionExpiredHandler(() {
+    router.go('/login');
+  });
 
   runApp(
     MultiProvider(

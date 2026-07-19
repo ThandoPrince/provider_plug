@@ -8,7 +8,7 @@ class RatingController extends ChangeNotifier {
 
   Future<bool> submitRating({
     required String sessionId,
-    required String providerEmail,
+   
     required int score,
     String? review,
   }) async {
@@ -18,7 +18,7 @@ class RatingController extends ChangeNotifier {
     try {
       final success = await PatchRatingApi.patchRating(
         sessionId: sessionId,
-        providerEmail: providerEmail,
+       
         score: score,
         review: review,
       );

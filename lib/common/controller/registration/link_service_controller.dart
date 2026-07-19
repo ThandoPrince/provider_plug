@@ -4,15 +4,18 @@ import 'package:flutter_application_2/common/services/link_service_api.dart';
 
 class LinkServiceController extends ChangeNotifier {
   final LinkServiceApi linkServiceApi = LinkServiceApi();
- 
 
   bool isLoading = false;
   String? message;
+
   Map<String, dynamic>? lastServiceResponse;
+
+  /// Stores the ProviderService ID returned by the backend
+  String? providerServiceId;
 
   /// Submit a service
   Future<bool> submitService({
-    required String email,
+   
     required String serviceName,
     String description = '',
     String? serviceGroupId,
@@ -20,10 +23,10 @@ class LinkServiceController extends ChangeNotifier {
     isLoading = true;
     message = null;
     lastServiceResponse = null;
+    providerServiceId = null;
     notifyListeners();
 
     final result = await LinkServiceApi.submitService(
-   
       serviceName: serviceName,
       description: description,
       serviceGroupId: serviceGroupId,
@@ -32,22 +35,20 @@ class LinkServiceController extends ChangeNotifier {
     isLoading = false;
 
     if (result["success"]) {
-
-
+      // Save the ProviderService ID
+      providerServiceId = result["id"]?.toString();
 
       lastServiceResponse = {
         "status": result["status"],
         "service": result["service"],
       };
+
       notifyListeners();
       return true;
-    } 
-    
-    else {
+    } else {
       message = result["message"];
       notifyListeners();
       return false;
     }
-    
   }
 }

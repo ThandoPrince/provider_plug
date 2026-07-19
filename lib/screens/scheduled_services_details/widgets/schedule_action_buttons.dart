@@ -1,27 +1,36 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_application_2/common/controller/bookings/session_by_shipment_ctrl.dart';
 import 'package:flutter_application_2/common/models/models/order_service_models/shipment_model.dart';
+import 'package:flutter_application_2/common/models/models/order_service_models/shipment_route_model.dart';
+import 'package:flutter_application_2/common/services/session_socket_service.dart';
 import 'package:flutter_application_2/common/utils/kcolors.dart';
 import 'package:flutter_application_2/screens/scan_session_qr_code/views/session_initiation_qr_screen.dart';
 import 'package:flutter_application_2/screens/schedule_directions/views/here_directions_schedule.dart';
-import 'package:flutter_application_2/screens/schedule_directions/widgets/here_route_conversion.dart';
+import 'package:flutter_application_2/screens/schedule_directions/widgets/here_map_controller.dart';
 import 'package:flutter_application_2/screens/schedule_directions/widgets/navigate_screen.dart';
-import 'package:flutter_application_2/screens/schedule_directions/widgets/shipment_reroute_helper.dart';
 import 'package:flutter_application_2/screens/scheduled_services_details/widgets/client_info_tile.dart';
 import 'package:flutter_application_2/screens/scheduled_services_details/widgets/schedule_flushbar_widget.dart';
 import 'package:flutter_application_2/screens/session/views/session_screen.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:here_sdk/core.dart';
+import 'package:here_sdk/routing.dart' as here;
 import 'package:provider/provider.dart';
-
-class ScheduleActionButtons extends StatelessWidget {
+import 'package:flutter_application_2/common/services/shipment_route_api.dart';
+class ScheduleActionButtons extends StatefulWidget {
   final Shipment shipment;
+final SessionSocketService sessionSocket;
+  const ScheduleActionButtons({super.key, required this.shipment, required this.sessionSocket});
 
-  String get _status => shipment.shipmentStatus?.toLowerCase() ?? "";
+  @override
+  State<ScheduleActionButtons> createState() => _ScheduleActionButtonsState();
+}
 
-  const ScheduleActionButtons({super.key, required this.shipment});
+class _ScheduleActionButtonsState extends State<ScheduleActionButtons> {
+  String get _status => widget.shipment.shipmentStatus?.toLowerCase() ?? "";
 
   @override
   Widget build(BuildContext context) {
-    if (shipment.serviceOrdered?.order?.client == null) {
+    if (widget.shipment.serviceOrdered?.order?.client == null) {
       return const SizedBox.shrink();
     }
 
@@ -64,7 +73,7 @@ class ScheduleActionButtons extends StatelessWidget {
                         child: SingleChildScrollView(
                           controller: controller,
                           child: ClientInfoTile(
-                            client: shipment.serviceOrdered?.order?.client,
+                            client: widget.shipment.serviceOrdered?.order?.client,
                           ),
                         ),
                       );
@@ -94,15 +103,15 @@ class ScheduleActionButtons extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
     ),
     onPressed: () async {
-      final lat = shipment.serviceOrdered?.order?.deliveryAddress?.latitude ?? 0.0;
-      final lng = shipment.serviceOrdered?.order?.deliveryAddress?.longitude ?? 0.0;
+      final lat = widget.shipment.serviceOrdered?.order?.deliveryAddress?.latitude ?? 0.0;
+      final lng = widget.shipment.serviceOrdered?.order?.deliveryAddress?.longitude ?? 0.0;
 
       if (lat == 0.0 || lng == 0.0) {
         ScheduleFlushbar.error(context, "Invalid destination coordinates");
         return;
       }
 
-      final shipmentId = shipment.shipmentId ?? 0;
+      final shipmentId = widget.shipment.shipmentId ?? 0;
       final status = _status; 
 
  
@@ -111,18 +120,150 @@ class ScheduleActionButtons extends StatelessWidget {
           context,
           MaterialPageRoute(
             builder: (_) => HereDestinationScreen(
+              sessionSocket: widget.sessionSocket,
               destinationLat: lat,
               destinationLng: lng,
               shipmentId: shipmentId,
-              providerEmail: shipment.serviceOrdered?.order?.providerForService?.provider?.spProfile?.emailAddress,
+              
             ),
           ),
         );
         return;
       }
 
+     if (status == "in_transit") {
+  try {
+    final routes = await ShipmentRouteApi.getShipmentRoutes(
+      shipmentId,
+    );
+
+    if (routes.isEmpty) {
+      ScheduleFlushbar.error(
+        context,
+        "No navigation route found.",
+      );
+      return;
+    }
+
+    final latestRoute = routes.last;
+
+    final travelMode =
+        travelModeFromString(latestRoute.travelMode);
+
+    final currentPosition =
+        await Geolocator.getCurrentPosition(
+      desiredAccuracy: LocationAccuracy.bestForNavigation,
+    );
+
+    final routingEngine = here.RoutingEngine();
+
+    final waypoints = [
+      here.Waypoint(
+        GeoCoordinates(
+          currentPosition.latitude,
+          currentPosition.longitude,
+        ),
+      ),
+      here.Waypoint(
+        GeoCoordinates(
+          latestRoute.destinationLat,
+          latestRoute.destinationLng,
+        ),
+      ),
+    ];
+
+    void navigate(List<here.Route>? calculatedRoutes) {
+      if (calculatedRoutes == null || calculatedRoutes.isEmpty) {
+        ScheduleFlushbar.error(
+          context,
+          "Failed to resume navigation.",
+        );
+        return;
+      }
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => NavigationScreen(
+            shipmentId: shipmentId,
+            route: calculatedRoutes.first,
+            travelMode: travelMode,
+            destinationLat: latestRoute.destinationLat,
+            destinationLng: latestRoute.destinationLng,
+            sessionSocket: widget.sessionSocket,
+          ),
+        ),
+      );
+    }
+
+    switch (travelMode) {
+      case TravelMode.car:
+        routingEngine.calculateCarRoute(
+          waypoints,
+          here.CarOptions(),
+          (error, calculatedRoutes) {
+            if (error != null) {
+              ScheduleFlushbar.error(
+                context,
+                "Failed to resume navigation.",
+              );
+              return;
+            }
+
+            navigate(calculatedRoutes);
+          },
+        );
+        break;
+
+      case TravelMode.pedestrian:
+        routingEngine.calculatePedestrianRoute(
+          waypoints,
+          here.PedestrianOptions(),
+          (error, calculatedRoutes) {
+            if (error != null) {
+              ScheduleFlushbar.error(
+                context,
+                "Failed to resume navigation.",
+              );
+              return;
+            }
+
+            navigate(calculatedRoutes);
+          },
+        );
+        break;
+
+      case TravelMode.bicycle:
+      case TravelMode.scooter:
+        routingEngine.calculateBicycleRoute(
+          waypoints,
+          here.BicycleOptions(),
+          (error, calculatedRoutes) {
+            if (error != null) {
+              ScheduleFlushbar.error(
+                context,
+                "Failed to resume navigation.",
+              );
+              return;
+            }
+
+            navigate(calculatedRoutes);
+          },
+        );
+        break;
+    }
+  } catch (e) {
+    ScheduleFlushbar.error(
+      context,
+      "Failed to load navigation route.",
+    );
+  }
+
+  return;
+}
+
      
-      if (status == "in_transit" || status == "arrived" || status == "delivered" || status == "in_session") {
+      if ( status == "arrived" || status == "delivered" || status == "in_session") {
         final sessionController = SessionByShipmentController();
         await sessionController.fetchSession(shipmentId.toString());
         final session = sessionController.session;
@@ -135,7 +276,8 @@ class ScheduleActionButtons extends StatelessWidget {
                 value: sessionController,
                 child: SessionScreen(
                   session: session,
-                  providerEmail: shipment.serviceOrdered?.order?.providerForService?.provider?.spProfile?.emailAddress,
+                  sessionSocket: widget.sessionSocket,
+                  
                 ),
               ),
             ),
@@ -150,7 +292,8 @@ class ScheduleActionButtons extends StatelessWidget {
             MaterialPageRoute(
               builder: (_) => SessionInitiationQrScreen(
                 shipmentId: shipmentId,
-                providerEmail: shipment.serviceOrdered?.order?.providerForService?.provider?.spProfile?.emailAddress,
+                sessionSocket: widget.sessionSocket,
+                
               ),
             ),
           );

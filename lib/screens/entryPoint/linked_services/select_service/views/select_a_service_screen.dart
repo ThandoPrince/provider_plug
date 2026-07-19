@@ -10,9 +10,9 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 class SelectAServiceScreen extends StatefulWidget {
-  final String providerEmail;
+  
 
-  const SelectAServiceScreen({required this.providerEmail, super.key});
+  const SelectAServiceScreen({ super.key});
 
   @override
   State<SelectAServiceScreen> createState() => _SelectAServiceScreenState();
@@ -323,13 +323,13 @@ class _SelectAServiceScreenState extends State<SelectAServiceScreen> {
         onTap: controller.isLoading ? null : () async { // Prevent double-tap
           if (_selectedService != null) {
             final success = await controller.submitService(
-              email: widget.providerEmail,
+              
               serviceName: _selectedService!.serviceName!,
               serviceGroupId: _selectedService!.serviceGroup?.groupId,
             );
 
             if (success && mounted) {
-              context.go('/providers/${widget.providerEmail}/add/${_selectedService!.serviceId}/cost');
+              context.go('/providers/add/${_selectedService!.serviceId}/cost');
             } else if (mounted) {
               // SHOW ACTUAL ERROR MESSAGE FROM CONTROLLER
               FlushbarHelper.createError(
@@ -337,7 +337,7 @@ class _SelectAServiceScreenState extends State<SelectAServiceScreen> {
               ).show(context);
             }
           } else {
-            context.push('/sp_add_a_service/${widget.providerEmail}');
+            context.push('/sp_add_a_service');
           }
         },
         child: Container(

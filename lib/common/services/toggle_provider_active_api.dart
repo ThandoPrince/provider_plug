@@ -1,33 +1,34 @@
 import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
+import 'package:flutter_application_2/common/controller/registration/api_client.dart';
+import 'package:flutter_application_2/common/controller/registration/api_exeption.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
-import 'package:flutter_application_2/common/controller/auth/auth_session_controller.dart';
 
 class ToggleProviderActiveApi {
   static final String baseUrl = dotenv.env['API_BASE_URL'] ?? '';
 
-  /// PATCH: Toggles the provider's active/online availability status on the system
-  static Future<Map<String, dynamic>> toggleProviderActive(String email) async {
-    final url = Uri.parse('$baseUrl/providers/toggle-active/');
+  /// PATCH: Toggles the provider's active/online availability status.
+  static Future<Map<String, dynamic>> toggleProviderActive(
     
-    // Auto-extract token from session state manager
-    final String? token = AuthSessionController.instance.accessToken;
-
+  ) async {
     try {
-      final response = await http.patch(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
-        },
-      ).timeout(const Duration(seconds: 15));
+      final response = await ApiClient.instance.request(
+        (token) => http.patch(
+          Uri.parse('$baseUrl/providers/toggle-active/'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            if (token != null && token.isNotEmpty)
+              'Authorization': 'Bearer $token',
+          },
+        ),
+      );
 
-      final dynamic decodedBody = jsonDecode(response.body);
-      final Map<String, dynamic> data = decodedBody is Map 
-          ? Map<String, dynamic>.from(decodedBody) 
-          : {};
+      final data = response.body.isNotEmpty
+          ? jsonDecode(response.body) as Map<String, dynamic>
+          : <String, dynamic>{};
 
       if (response.statusCode == 200) {
         return {
@@ -37,18 +38,24 @@ class ToggleProviderActiveApi {
         };
       }
 
-      return {
-        "success": false,
-        "message": data["message"] ?? "Failed to toggle active status [${response.statusCode}].",
-      };
+      throw ApiException(
+        data["message"] ??
+            "Failed to toggle active status [${response.statusCode}].",
+      );
+    } on ApiException {
+      rethrow;
+    } on FormatException {
+      throw const ApiException(
+        "Invalid response received from the server.",
+      );
     } catch (e) {
       if (kDebugMode) {
-        print('❌ TOGGLE ACTIVE EXCEPTION: $e');
+        print("⚠️ ToggleProviderActiveApi: $e");
       }
-      return {
-        "success": false,
-        "message": "Connection error while updating online status.",
-      };
+
+      throw const ApiException(
+        "Failed to update online status.",
+      );
     }
   }
 }

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_application_2/common/models/provider_login_response_model.dart';
+
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import 'dart:convert';
@@ -14,15 +14,15 @@ class AuthSessionController with ChangeNotifier {
 
   static final AuthSessionController instance =
       AuthSessionController._internal();
-
+Future<String?>? _refreshFuture;
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
 
-  String? _email;
+
   int? _id;
   String? _accessToken;
   String? _refreshToken;
 
-  String? get email => _email;
+
   int? get id => _id;
   String? get accessToken => _accessToken;
   String? get refreshToken => _refreshToken;
@@ -31,13 +31,17 @@ class AuthSessionController with ChangeNotifier {
       _accessToken?.isNotEmpty == true &&
       _refreshToken?.isNotEmpty == true;
 
-  static const _kEmail = "auth_email";
+  bool _loggedOut = false;
+  bool get loggedOut => _loggedOut;
+
+
+
   static const _kId = "auth_id";
   static const _kAccess = "auth_access_token";
   static const _kRefresh = "auth_refresh_token";
 
   Future<void> loadSession() async {
-    _email = await _storage.read(key: _kEmail);
+  
 
     final storedId = await _storage.read(key: _kId);
     _id = storedId != null ? int.tryParse(storedId) : null;
@@ -48,20 +52,35 @@ class AuthSessionController with ChangeNotifier {
     notifyListeners();
   }
 
+  Future<String?> getValidAccessToken() async {
+  final token = accessToken;
+  if (token == null) return null;
+
+  // optional: decode JWT expiry check here
+
+  final newToken = await refreshAccessToken();
+  return newToken ?? token;
+}
+void markLoggedIn() {
+  if (_loggedOut) {
+    _loggedOut = false;
+    notifyListeners();
+  }
+}
   Future<void> setSession({
     required int id,
-    required String email,
+   
     required String accessToken,
     required String refreshToken,
   }) async {
     _id = id;
-    _email = email;
+    
     _accessToken = accessToken;
     _refreshToken = refreshToken;
 
     await Future.wait([
       _storage.write(key: _kId, value: id.toString()),
-      _storage.write(key: _kEmail, value: email),
+   
       _storage.write(key: _kAccess, value: accessToken),
       _storage.write(key: _kRefresh, value: refreshToken),
     ]);
@@ -69,52 +88,102 @@ class AuthSessionController with ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> clearSession() async {
-    _id = null;
-    _email = null;
-    _accessToken = null;
-    _refreshToken = null;
+    Future<void> clearSession() async {
+      _id = null;
+     
+      _accessToken = null;
+      _refreshToken = null;
+  _loggedOut = true;
+      await _storage.deleteAll();
 
-    await _storage.deleteAll();
-
-    notifyListeners();
-  }
+      notifyListeners();
+    }
 
   Future<String?> refreshAccessToken() async {
-    if (_refreshToken == null) return null;
+  if (_refreshFuture != null) {
+    debugPrint("Refresh already in progress. Waiting...");
+    return await _refreshFuture;
+  }
 
-    try {
-      final baseUrl = dotenv.env['API_BASE_URL'] ?? '';
+  _refreshFuture = _performRefresh();
 
-      final response = await http.post(
-        Uri.parse('$baseUrl/client/token/refresh/'),
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({
-          'refresh': _refreshToken,
-        }),
-      );
+  try {
+    return await _refreshFuture;
+  } finally {
+    _refreshFuture = null;
+  }
+}
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
+Future<String?> _performRefresh() async {
+  if (_refreshToken == null) {
+    return null;
+  }
 
-        _accessToken = data['access'];
+  try {
+    debugPrint("Refreshing access token...");
+
+    final String baseUrl =
+        dotenv.env['API_BASE_URL'] ?? '';
+
+    final url = Uri.parse(
+      "$baseUrl/client/token/refresh/",
+    );
+
+    final response = await http.post(
+      url,
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: jsonEncode({
+        "refresh": _refreshToken,
+      }),
+    );
+
+    debugPrint(
+      "Refresh response: ${response.statusCode}",
+    );
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+
+      _accessToken = data["access"];
+
+      if (data["refresh"] != null) {
+        _refreshToken = data["refresh"];
 
         await _storage.write(
-          key: _kAccess,
-          value: _accessToken,
+          key: _kRefresh,
+          value: _refreshToken,
         );
-
-        notifyListeners();
-
-        return _accessToken;
       }
 
-      await clearSession();
-      return null;
-    } catch (_) {
-      return null;
+      await _storage.write(
+        key: _kAccess,
+        value: _accessToken,
+      );
+
+      notifyListeners();
+
+      debugPrint("Token refresh successful");
+
+      return _accessToken;
     }
+
+    debugPrint(
+      "Refresh failed: ${response.body}",
+    );
+
+    await clearSession();
+
+    return null;
+  } catch (e) {
+    debugPrint(
+      "Refresh exception: $e",
+    );
+
+    await clearSession();
+
+    return null;
   }
+}
 }

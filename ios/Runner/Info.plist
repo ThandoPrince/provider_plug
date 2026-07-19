@@ -16,6 +16,10 @@
 	<string>flutter_application_2</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Camera access is required for identity verification.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Required to preview captured videos.</string>
 	<key>CFBundleShortVersionString</key>
 	<string>$(FLUTTER_BUILD_NAME)</string>
 	<key>CFBundleSignature</key>

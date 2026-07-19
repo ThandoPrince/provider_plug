@@ -5,11 +5,11 @@ import 'package:flutter_application_2/common/utils/kcolors.dart';
 import 'package:provider/provider.dart';
 
 class ProviderActiveToggle extends StatefulWidget {
-  final String email;
+  
 
   const ProviderActiveToggle({
     super.key,
-    required this.email,
+    
   });
 
   @override
@@ -36,7 +36,7 @@ class _ProviderActiveToggleState extends State<ProviderActiveToggle> {
     final spCtrl = context.read<SpProfileCtrl>();
     final activeCtrl = context.read<ProviderActiveController>();
 
-    await spCtrl.fetchSPByEmail(widget.email);
+    await spCtrl.fetchSPByEmail();
 
     final profile = spCtrl.spProfile;
     if (profile != null) {
@@ -95,7 +95,7 @@ class _ProviderActiveToggleState extends State<ProviderActiveToggle> {
                     ? null
                     : () async {
                         final success =
-                            await controller.toggleActive(widget.email);
+                            await controller.toggleActive();
 
                         if (!context.mounted) return;
 

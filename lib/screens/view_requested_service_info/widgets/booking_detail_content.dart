@@ -21,7 +21,7 @@ class BookingDetailContent extends StatelessWidget {
   Future<void> showNegotiationBottomSheet(
     BuildContext context,
     int orderId,
-    String providerEmail,
+   
   ) async {
     final result = await showModalBottomSheet(
       context: context,
@@ -31,28 +31,28 @@ class BookingDetailContent extends StatelessWidget {
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
 
-      builder: (context) => Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Kolors.kPrimary, Color(0xFF1A1A1A)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: FractionallySizedBox(
-          heightFactor: 0.85,
-          child: ChangeNotifierProvider(
-            create: (_) =>
-                SpNegotiationsByIdEmailCtrl()
-                  ..loadNegotiations(orderId: orderId, email: providerEmail),
-            child: NegotiationBottomSheetContent(
-              orderId: orderId,
-              providerEmail: providerEmail,
-            ),
-          ),
-        ),
+      builder: (context) {
+  
+
+  return Container(
+    decoration: BoxDecoration(
+      gradient: LinearGradient(
+        colors: [Kolors.kPrimary, const Color(0xFF1A1A1A)],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
       ),
+      borderRadius: const BorderRadius.vertical(
+        top: Radius.circular(24),
+      ),
+    ),
+    child: FractionallySizedBox(
+      heightFactor: 0.85,
+      child: NegotiationBottomSheetContent(
+        orderId: orderId,
+      ),
+    ),
+  );
+}
     );
 
     if (result == true) {
@@ -129,12 +129,12 @@ class BookingDetailContent extends StatelessWidget {
                 child: InkWell(
                   onTap: () {
                     if (booking.orderId != null) {
-                      final email = context.read<AuthSessionController>().email!;
+                   
                       
                       showNegotiationBottomSheet(
                         context,
                         booking.orderId!,
-                        email,
+                      
                       );
                     }
                   },

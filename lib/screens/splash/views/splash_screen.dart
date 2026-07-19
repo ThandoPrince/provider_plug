@@ -43,7 +43,7 @@ class SplashScreen extends StatefulWidget {
 class _SplashScreenState extends State<SplashScreen> {
   bool _hasStarted = false;
   String? _errorMessage;
-  String _statusText = "Starting app...";
+
 
   @override
   void initState() {
@@ -56,90 +56,86 @@ class _SplashScreenState extends State<SplashScreen> {
     }
   }
 
-  void _updateStatus(String message) {
-    if (!mounted) return;
-    setState(() {
-      _statusText = message;
-    });
-  }
+  
 
   Future<void> _bootstrap() async {
-    try {
-      await _initializeApp();
+  try {
+    await _initializeApp();
 
-      if (!mounted) return;
+    if (!mounted) return;
 
-      final bool isFirstTime =
-          Storage().getBool('isFirstTimeProvider') ?? true;
+    final bool isFirstTime =
+        Storage().getBool('isFirstTimeProvider') ?? true;
 
-      debugPrint('Splash -> isFirstTimeProvider = $isFirstTime');
+    debugPrint('Splash -> isFirstTimeProvider = $isFirstTime');
 
-      final auth = AuthSessionController.instance;
-      final bool isLoggedIn =
-          auth.email != null && auth.email!.trim().isNotEmpty;
+    final auth = AuthSessionController.instance;
 
-      if (!mounted) return;
+    // Load saved tokens from secure storage
+    await auth.loadSession();
 
-      if (isFirstTime) {
-        context.go('/onboarding');
-      } else if (isLoggedIn) {
-        // Change this route if your authenticated home route is different
-        context.go('/login');
-      } else {
-        context.go('/login');
-      }
-    } catch (e, st) {
-      debugPrint("❌ Splash initialization failed: $e\n$st");
+    if (!mounted) return;
 
-      if (!mounted) return;
-
-      setState(() {
-        _errorMessage = "Initialization failed.\nCheck logs for details.";
-      });
+    if (isFirstTime) {
+      context.go('/onboarding');
+    } else if (auth.isLoggedIn) {
+      auth.markLoggedIn();
+      context.go('/entrypoint');
+    } else {
+      context.go('/login');
     }
+  } catch (e, st) {
+    debugPrint("❌ Splash initialization failed: $e\n$st");
+
+    if (!mounted) return;
+
+    setState(() {
+      _errorMessage = "Initialization failed.\nCheck logs for details.";
+    });
   }
+} 
 
   Future<void> _initializeApp() async {
-    _updateStatus("Loading local storage...");
+
     await GetStorage.init();
 
-    _updateStatus("Restoring session...");
+
     await AuthSessionController.instance.loadSession();
 
-    _updateStatus("Loading environment...");
+
     final bool envLoaded = await _safeLoadEnv();
     if (!envLoaded) {
       throw Exception("Environment loading failed");
     }
 
-    _updateStatus("Initializing HERE SDK...");
+
     final bool hereSdkInitialized = await _safeInitializeHERESDK();
     if (!hereSdkInitialized) {
       throw Exception("HERE SDK initialization failed");
     }
 
-    _updateStatus("Checking Huawei services...");
+
     await _detectHuaweiPushEnvironment();
 
     if (!useHuaweiPush) {
-      _updateStatus("Initializing Firebase...");
+
       await _initializeFirebase();
 
       fcm.FirebaseMessaging.onBackgroundMessage(
         firebaseBackgroundHandler,
       );
 
-      _updateStatus("Requesting Firebase permission...");
+
       await _requestFirebasePermission();
     }
 
-    _updateStatus("Requesting notification permission...");
+
     await _requestNotificationPermission();
 
-    _updateStatus("Initializing push notifications...");
+
     await PushNotificationService.instance.initialize();
 
-    _updateStatus("Ready...");
+   
   }
 
   Future<void> _detectHuaweiPushEnvironment() async {
@@ -315,27 +311,8 @@ class _SplashScreenState extends State<SplashScreen> {
               child: Image.asset('assets/icons/plug_icon.png'),
             ),
             SizedBox(height: 20.h),
-            const SizedBox(
-              height: 20,
-              width: 20,
-              child: CircularProgressIndicator(
-                strokeWidth: 2.4,
-                valueColor: AlwaysStoppedAnimation(Colors.white),
-              ),
-            ),
-            SizedBox(height: 20.h),
-            Padding(
-              padding: EdgeInsets.symmetric(horizontal: 24.w),
-              child: Text(
-                _statusText,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Kolors.kSecondaryLight,
-                  fontSize: 16.sp,
-                  fontStyle: FontStyle.italic,
-                ),
-              ),
-            ),
+          
+          
           ],
         ),
       ),

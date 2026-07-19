@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_application_2/common/controller/auth/auth_session_controller.dart';
 import 'package:flutter_application_2/common/controller/bookings/bookings_by_email_controller.dart';
 import 'package:flutter_application_2/common/controller/sp_contollers/provider_active_controller.dart';
 import 'package:flutter_application_2/common/controller/sp_contollers/sp_profile_ctrl.dart';
@@ -9,11 +10,11 @@ import 'package:flutter_application_2/screens/onboarding/Widgets/back_exit_widge
 import 'package:provider/provider.dart';
 
 class HomeScreen extends StatefulWidget {
-  final String email;
-
+  
+final int providerID;
   const HomeScreen({
     super.key,
-    required this.email,
+    required this.providerID,
   });
 
   @override
@@ -43,7 +44,9 @@ class _HomeScreenState extends State<HomeScreen> {
   void didUpdateWidget(covariant HomeScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    if (oldWidget.email != widget.email) {
+    final providerID = AuthSessionController.instance.id;
+
+    if (oldWidget.providerID != widget.providerID) {
       WidgetsBinding.instance.addPostFrameCallback((_) async {
         await _reinitializeForNewEmail();
       });
@@ -51,27 +54,32 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _initializeControllers() async {
-    if (!mounted) return;
+  if (!mounted) return;
 
-    _bookingController = context.read<SPBookingController>();
-    _locationController = context.read<SpLiveLocationPostController>();
-    _activeController = context.read<ProviderActiveController>();
-    _profileController = context.read<SpProfileCtrl>();
+  _bookingController = context.read<SPBookingController>();
+  _locationController = context.read<SpLiveLocationPostController>();
+  _activeController = context.read<ProviderActiveController>();
+  _profileController = context.read<SpProfileCtrl>();
 
-    _bookingController?.removeListener(_bookingErrorListener);
-    _activeController?.removeListener(_providerStatusListener);
+  _bookingController?.removeListener(_bookingErrorListener);
+  _activeController?.removeListener(_providerStatusListener);
 
-    _bookingController?.addListener(_bookingErrorListener);
-    _activeController?.addListener(_providerStatusListener);
+  _bookingController?.addListener(_bookingErrorListener);
+  _activeController?.addListener(_providerStatusListener);
 
-    await _loadInitialProviderStatusAndSync();
+  // Connect websocket immediately after login.
+await _loadInitialProviderStatusAndSync();
 
-    if (!mounted) return;
+await _bookingController?.startRealtime(widget.providerID);
 
-    setState(() {
-      _isInitializing = false;
-    });
-  }
+  if (!mounted) return;
+
+  AuthSessionController.instance.markLoggedIn();
+
+  setState(() {
+    _isInitializing = false;
+  });
+}
 
   Future<void> _reinitializeForNewEmail() async {
    
@@ -100,7 +108,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (profileCtrl == null || activeCtrl == null) return;
 
-    await profileCtrl.fetchSPByEmail(widget.email);
+    await profileCtrl.fetchSPByEmail();
 
     if (!mounted) return;
 
@@ -114,29 +122,40 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _syncOnlineState(bool isOnline) async {
-    final bookingCtrl = _bookingController;
-    final locationCtrl = _locationController;
+  debugPrint("🏠 _syncOnlineState(isOnline=$isOnline)");
 
-    if (bookingCtrl == null || locationCtrl == null) return;
+  final locationCtrl = _locationController;
 
-    await bookingCtrl.syncPollingWithStatus(
-      email: widget.email,
-      isOnline: isOnline,
+  if (locationCtrl == null) {
+    debugPrint("❌ locationCtrl is null");
+    return;
+  }
+
+  if (isOnline) {
+    final providerID = AuthSessionController.instance.id;
+
+    debugPrint("▶️ Calling startTracking($providerID)");
+
+    await locationCtrl.startTracking(
+      providerId: providerID!,
+      intervalSeconds: 30,
     );
-
-    if (isOnline) {
-      locationCtrl.startTracking(email: widget.email);
-    } else {
-      locationCtrl.stopTracking();
-    }
+  } else {
+    debugPrint("⏹️ Calling stopTracking()");
+    locationCtrl.stopTracking();
   }
+}
 
-  void _providerStatusListener() {
-    final activeCtrl = _activeController;
-    if (activeCtrl == null || !mounted) return;
+ void _providerStatusListener() {
+  debugPrint(
+    "📢 Provider status changed: ${_activeController?.isActive}",
+  );
 
-    _syncOnlineState(activeCtrl.isActive);
-  }
+  final activeCtrl = _activeController;
+  if (activeCtrl == null || !mounted) return;
+
+  _syncOnlineState(activeCtrl.isActive);
+}
 
   void _bookingErrorListener() {
     final bookingCtrl = _bookingController;
@@ -178,7 +197,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _activeController?.removeListener(_providerStatusListener);
 
     
-    _locationController?.stopTracking();
+    _locationController?.stopTracking(notify: false);
 
     super.dispose();
   }
@@ -235,7 +254,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               topRight: Radius.circular(30),
                             ),
                           ),
-                          child: HomeBodyWidget(email: widget.email),
+                          child: HomeBodyWidget(),
                         ),
                       ),
                     ),

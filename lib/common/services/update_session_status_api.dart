@@ -1,57 +1,71 @@
 import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
+import 'package:flutter_application_2/common/controller/registration/api_client.dart';
+import 'package:flutter_application_2/common/controller/registration/api_exeption.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
-import 'package:flutter_application_2/common/controller/auth/auth_session_controller.dart';
 
 class UpdateSessionStatusApi {
   static final String baseUrl = dotenv.env['API_BASE_URL'] ?? '';
 
-  /// PATCH: Updates a booking session status (e.g., checked-out, cancelled, completed)
+  /// PATCH: Updates a booking session status.
   static Future<Map<String, dynamic>> updateSessionStatus({
     required int sessionId,
     required String status,
     Map<String, dynamic>? checkoutLocation,
   }) async {
-    final url = Uri.parse('$baseUrl/bookings/sessions/$sessionId/update_status/');
-    
-    // Auto-extract token from session state manager
-    final String? token = AuthSessionController.instance.accessToken;
-
-    final Map<String, dynamic> payload = {
+    final payload = {
       'session_status': status,
-      if (checkoutLocation != null) 'checkout_location': checkoutLocation,
+      if (checkoutLocation != null)
+        'checkout_location': checkoutLocation,
     };
 
     try {
-      final response = await http.patch(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
-        },
-        body: jsonEncode(payload),
-      ).timeout(const Duration(seconds: 15));
+      final response = await ApiClient.instance.request(
+        (token) => http.patch(
+          Uri.parse(
+            '$baseUrl/bookings/sessions/$sessionId/update_status/',
+          ),
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            if (token != null && token.isNotEmpty)
+              'Authorization': 'Bearer $token',
+          },
+          body: jsonEncode(payload),
+        ),
+      );
 
-      final dynamic decodedResponse = jsonDecode(response.body);
-      final Map<String, dynamic> responseData = decodedResponse is Map 
-          ? Map<String, dynamic>.from(decodedResponse) 
-          : {'message': response.body};
+      final responseData = response.body.isNotEmpty
+          ? jsonDecode(response.body) as Map<String, dynamic>
+          : <String, dynamic>{};
 
-      if (response.statusCode >= 200 && response.statusCode < 300) {
+      if (response.statusCode >= 200 &&
+          response.statusCode < 300) {
         return responseData;
-      } else {
-        final String serverError = responseData['message'] ?? responseData['error'] ?? response.body;
-        throw Exception(kDebugMode
-            ? 'Backend Error: $serverError'
-            : 'Failed: $serverError');
       }
+
+      throw ApiException(
+        responseData['detail'] ??
+            responseData['message'] ??
+            responseData['error'] ??
+            'Failed to update session status.',
+      );
+    } on ApiException {
+      rethrow;
+    } on FormatException {
+      throw const ApiException(
+        'Invalid response received from the server.',
+      );
     } catch (e) {
       if (kDebugMode) {
-        print('❌ STATUS PATCH EXCEPTION: $e');
+        print('⚠️ UpdateSessionStatusApi: $e');
       }
-      throw Exception('Network error or server rejected update: $e');
+
+      throw const ApiException(
+        'Failed to update session status.',
+      );
     }
   }
 }

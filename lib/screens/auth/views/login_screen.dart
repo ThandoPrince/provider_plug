@@ -17,114 +17,126 @@ class SPLoginScreen extends StatefulWidget {
 }
 
 class _SPLoginScreenState extends State<SPLoginScreen> {
-  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _identifierController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   bool _obscureText = true;
 
+  static final RegExp _emailPattern = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+  // Loose phone check: digits, optional leading +, optional spaces/dashes,
+  // at least 7 digits total. Intentionally permissive since we're not
+  // enforcing a specific country format here — the backend validates.
+  static final RegExp _phonePattern = RegExp(r'^\+?[\d\s\-]{7,15}$');
+
+  bool get _looksLikePhone {
+    final value = _identifierController.text.trim();
+    return value.isNotEmpty && _phonePattern.hasMatch(value) && !value.contains('@');
+  }
+
   @override
   void dispose() {
-    _emailController.dispose();
+    _identifierController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
 
-  Future<void> _goToCostStep(String email) async {
-  final providerServiceController = context.read<GetProviderForServiceController>();
+  Future<void> _goToCostStep(String identifier) async {
+    final providerServiceController = context.read<GetProviderForServiceController>();
 
-  final fetched = await providerServiceController.fetchProviderServices(email);
+    final fetched = await providerServiceController.fetchProviderServices(identifier);
 
-  if (!mounted) return;
+    if (!mounted) return;
 
-  if (!fetched) {
-    _showErrorSnackBar(
-      providerServiceController.error ??
-          'Failed to fetch provider services.',
-    );
-    return;
-  }
-
-  final targetService =
-      providerServiceController.firstServiceWithoutCost ??
-      providerServiceController.primaryService ??
-      providerServiceController.firstService;
-
-  final serviceId = targetService?.serviceId;
-
-  if (serviceId == null) {
-    _showErrorSnackBar('No valid service found for cost setup.');
-    return;
-  }
-
-  context.go('/providers/$email/services/$serviceId/cost');
-}
-
- Future<void> _handleLogin(SPLoginController controller) async {
-  if (!_formKey.currentState!.validate()) return;
-  final user = controller.user;
-
-  final email = _emailController.text.trim().toLowerCase();
-
-  final success = await controller.login(
-    email: email,
-    password: _passwordController.text,
-  );
-
-  if (!mounted) return;
-
-  if (!success) {
-    if (controller.errorMessage != null) {
-      _showErrorSnackBar(controller.errorMessage!);
+    if (!fetched) {
+      _showErrorSnackBar(
+        providerServiceController.error ??
+            'Failed to fetch provider services.',
+      );
+      return;
     }
-    return;
+
+    final targetService =
+        providerServiceController.firstServiceWithoutCost ??
+        providerServiceController.primaryService ??
+        providerServiceController.firstService;
+
+    final serviceId = targetService?.serviceId;
+
+    if (serviceId == null) {
+      _showErrorSnackBar('No valid service found for cost setup.');
+      return;
+    }
+
+    context.go('/providers/$identifier/services/$serviceId/cost');
   }
 
-  
+  Future<void> _handleLogin(SPLoginController controller) async {
+    if (!_formKey.currentState!.validate()) return;
 
-  if (!mounted) return;
+    final rawInput = _identifierController.text.trim();
+    // Only lowercase email-style input — lowercasing a phone number is a
+    // no-op for digits but this keeps intent explicit and avoids mangling
+    // any future alphanumeric identifier formats.
+    final identifier = rawInput.contains('@') ? rawInput.toLowerCase() : rawInput;
 
+    final success = await controller.login(
+      email: identifier,
+      password: _passwordController.text,
+    );
 
+    if (!mounted) return;
 
- 
- 
+    if (!success) {
+      if (controller.errorMessage != null) {
+        _showErrorSnackBar(controller.errorMessage!);
+      }
+      return;
+    }
 
-  SuccessOverlay.show(
-    context,
-    message: "Welcome back! We are preparing your workspace.",
-  );
+    if (!mounted) return;
 
-  await Future.delayed(const Duration(seconds: 2));
+    SuccessOverlay.show(
+      context,
+      message: "Welcome back! We are preparing your workspace.",
+    );
 
-  if (!mounted) return;
-  if (kDebugMode) {
-    print(controller.user?.data?.isProfileCompleted);
+    await Future.delayed(const Duration(seconds: 2));
+
+    if (!mounted) return;
+    if (kDebugMode) {
+      print(controller.user?.data?.isProfileCompleted);
+    }
+
+    // NOTE: downstream routes (below) are built with `identifier` in the
+    // path, e.g. '/sp_patch/$identifier'. If those routes/screens expect
+    // the user's email specifically (not whatever identifier they logged
+    // in with), the backend response should return the canonical email
+    // so we route with that instead — check controller.user?.data for it.
+    switch (controller.user?.data?.isProfileCompleted) {
+      case 'in-details':
+        context.go('/sp_patch/$identifier');
+        break;
+
+      case 'in-address':
+        context.go('/sp_address_document/$identifier');
+        break;
+
+      case 'in-services':
+        context.go('/sp_select_service/$identifier');
+        break;
+
+      case 'in-cost':
+        await _goToCostStep(identifier);
+        break;
+
+      case 'completed':
+        context.go('/entrypoint');
+        break;
+
+      default:
+        _showErrorSnackBar("Unknown profile status.");
+    }
   }
-
-  switch (controller.user?.data?.isProfileCompleted) {
-    case 'in-details':
-      context.go('/sp_patch/$email');
-      break;
-
-    case 'in-address':
-      context.go('/sp_address_document/$email');
-      break;
-
-    case 'in-services':
-      context.go('/sp_select_service/$email');
-      break;
-
-    case 'in-cost':
-      await _goToCostStep(email);
-      break;
-
-    case 'completed':
-      context.go('/entrypoint');
-      break;
-
-    default:
-      _showErrorSnackBar("Unknown profile status.");
-  }
-}
 
   @override
   Widget build(BuildContext context) {
@@ -168,20 +180,31 @@ class _SPLoginScreenState extends State<SPLoginScreen> {
                                 _buildHeader(),
                                 const SizedBox(height: 48),
       
-                                _buildLabel("EMAIL ADDRESS"),
+                                _buildLabel("EMAIL OR MOBILE NUMBER"),
                                 _buildInputContainer(
                                   child: TextFormField(
-                                    controller: _emailController,
+                                    controller: _identifierController,
                                     keyboardType: TextInputType.emailAddress,
                                     style: const TextStyle(color: Kolors.kDark),
                                     decoration: _inputDecoration(
-                                      "Enter registered email",
-                                      Icons.email_outlined,
+                                      "Enter email or mobile number",
+                                      _looksLikePhone
+                                          ? Icons.phone_outlined
+                                          : Icons.email_outlined,
                                     ),
-                                    validator: (value) =>
-                                        (value == null || value.isEmpty)
-                                            ? "Email is required"
-                                            : null,
+                                    onChanged: (_) => setState(() {}),
+                                    validator: (value) {
+                                      final trimmed = value?.trim() ?? '';
+                                      if (trimmed.isEmpty) {
+                                        return "Email or mobile number is required";
+                                      }
+                                      final isEmail = _emailPattern.hasMatch(trimmed);
+                                      final isPhone = _phonePattern.hasMatch(trimmed);
+                                      if (!isEmail && !isPhone) {
+                                        return "Enter a valid email or mobile number";
+                                      }
+                                      return null;
+                                    },
                                   ),
                                 ),
       
@@ -217,31 +240,31 @@ class _SPLoginScreenState extends State<SPLoginScreen> {
                                   ),
                                 ),
       
-      const SizedBox(height: 20),
+                                const SizedBox(height: 20),
 
-Align(
-  alignment: Alignment.centerRight,
-  child: TextButton(
-    onPressed: () {
-      context.push('/reset_password');
-    },
-    style: TextButton.styleFrom(
-      padding: EdgeInsets.zero,
-      minimumSize: Size.zero,
-      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-    ),
-    child: const Text(
-      'Forgot Password?',
-      style: TextStyle(
-        color: Colors.white,
-        fontWeight: FontWeight.w600,
-        decoration: TextDecoration.underline,
-      ),
-    ),
-  ),
-),
+                                Align(
+                                  alignment: Alignment.centerRight,
+                                  child: TextButton(
+                                    onPressed: () {
+                                      context.push('/reset_password');
+                                    },
+                                    style: TextButton.styleFrom(
+                                      padding: EdgeInsets.zero,
+                                      minimumSize: Size.zero,
+                                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                    ),
+                                    child: const Text(
+                                      'Forgot Password?',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w600,
+                                        decoration: TextDecoration.underline,
+                                      ),
+                                    ),
+                                  ),
+                                ),
 
-const SizedBox(height: 20),
+                                const SizedBox(height: 20),
                                 const Spacer(),
       
                                 _buildLoginButton(controller),

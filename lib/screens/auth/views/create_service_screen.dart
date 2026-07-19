@@ -1,16 +1,17 @@
-import 'package:another_flushbar/flushbar_helper.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_application_2/common/controller/registration/fetch_service_group_by_controller.dart';
 import 'package:flutter_application_2/common/utils/kcolors.dart';
+import 'package:flutter_application_2/common/widgets/flushbar_service.dart';
+import 'package:flutter_application_2/screens/auth/widgets/verification_prompt_sheet.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_application_2/common/services/link_service_api.dart'; // Direct API import
 import 'package:go_router/go_router.dart';
 
 class CreateServiceScreen extends StatefulWidget {
-  final String providerEmail;
+  
 
-  const CreateServiceScreen({required this.providerEmail, super.key});
+  const CreateServiceScreen({ super.key});
 
   @override
   State<CreateServiceScreen> createState() => _CreateServiceScreenState();
@@ -31,11 +32,13 @@ class _CreateServiceScreenState extends State<CreateServiceScreen> {
 
   void _onSubmit() async {
     // 1. Validation check with Haptic Feedback
-    if (_selectedGroupId == null || _serviceNameController.text.trim().isEmpty) {
+    if (_selectedGroupId == null ||
+        _serviceNameController.text.trim().isEmpty) {
       HapticFeedback.vibrate(); // Direct correction from our previous chat!
-      FlushbarHelper.createError(
-        message: 'Please select a category and provide a service name.',
-      ).show(context);
+      FlushbarService.error(
+        context,
+        'Please select a category and provide a service name.',
+      );
       return;
     }
 
@@ -43,7 +46,6 @@ class _CreateServiceScreenState extends State<CreateServiceScreen> {
 
     try {
       final response = await LinkServiceApi.submitService(
-        
         serviceName: _serviceNameController.text.trim(),
         serviceGroupId: _selectedGroupId!,
       );
@@ -52,38 +54,53 @@ class _CreateServiceScreenState extends State<CreateServiceScreen> {
 
       if (response['success'] == true && response['service'] != null) {
         final serviceId = response['service']['service_id'];
+        final providerServiceId = response['id'];
         final status = response['status'];
 
         // 2. Handle specific status cases
         if (status == 'linked_existing') {
-          FlushbarHelper.createInformation(
-            message: "We found an existing category for this! Linking now...",
-          ).show(context);
+          FlushbarService.warning(
+            context,
+            "We found an existing category for this! Linking now...",
+          );
         } else if (status == 'requires_review') {
-          _showSuccessDialog(); 
-          return; 
+          _showSuccessDialog(serviceId);
+          return;
         }
 
-        // 3. Success Navigation
-        context.go('/providers/${widget.providerEmail}/services/$serviceId/cost');
-        
+        // 3. Success — prompt for verification instead of navigating straight through
+        VerificationPromptSheet.show(
+          context: context,
+          providerServiceId: response['id'].toString(),
+          
+          serviceId: serviceId,
+          onContinue: () {
+            if (mounted) {
+              context.go(
+                '/providers/services/$serviceId/cost',
+              );
+            }
+          },
+        );
       } else {
         // 4. Server-side validation or business logic failure
-        FlushbarHelper.createError(
-          message: response['message'] ?? "Could not create service. Please try again.",
-        ).show(context);
+        FlushbarService.error(
+          context,
+          response['message'] ?? "Could not create service. Please try again.",
+        );
       }
     } catch (e) {
       // 5. Catch-all for unexpected crashes
-      FlushbarHelper.createError(
-        message: "A connection error occurred. Please check your internet.",
-      ).show(context);
+      FlushbarService.error(
+        context,
+        "A connection error occurred. Please check your internet.",
+      );
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
   }
 
-  void _showSuccessDialog() {
+  void _showSuccessDialog(String serviceId) {
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -91,11 +108,13 @@ class _CreateServiceScreenState extends State<CreateServiceScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Text("Suggestion Sent"),
         content: const Text(
-          "Thank you! Our team will review your suggestion. You can now proceed to your dashboard.",
+          "Thank you! Our team will review your suggestion. You can now proceed with adding the cost.",
         ),
         actions: [
           TextButton(
-            onPressed: () => context.go('/entrypoint'),
+            onPressed: () => context.go(
+              '/providers/services/$serviceId/cost',
+            ),
             child: const Text(
               "OK",
               style: TextStyle(
@@ -246,64 +265,74 @@ class _CreateServiceScreenState extends State<CreateServiceScreen> {
       ],
     );
   }
-// In your _buildForm method, update the dropdown decoration
-Widget _buildForm(FetchServiceGroupByController controller) {
-  // Add an error state if categories fail to load
-  if (controller.groups.isEmpty && !controller.loading) {
-    return Center(
-      child: TextButton.icon(
-        onPressed: () => controller.fetchGroups(),
-        icon: const Icon(Icons.refresh, color: Kolors.kOffWhite),
-        label: const Text("Retry loading categories", style: TextStyle(color: Kolors.kOffWhite)),
-      ),
-    );
-  }
 
-  return Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      _buildInputLabel("SERVICE CATEGORY GROUP"),
-      _buildDropdownContainer(
-        child: DropdownButtonHideUnderline(
-          child: DropdownButtonFormField<String>(
-            value: _selectedGroupId,
-            isExpanded: true, // Prevents overflow for long names
-            dropdownColor: Colors.white,
-            items: controller.groups
-                .map((g) => DropdownMenuItem(
+  // In your _buildForm method, update the dropdown decoration
+  Widget _buildForm(FetchServiceGroupByController controller) {
+    // Add an error state if categories fail to load
+    if (controller.groups.isEmpty && !controller.loading) {
+      return Center(
+        child: TextButton.icon(
+          onPressed: () => controller.fetchGroups(),
+          icon: const Icon(Icons.refresh, color: Kolors.kOffWhite),
+          label: const Text(
+            "Retry loading categories",
+            style: TextStyle(color: Kolors.kOffWhite),
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildInputLabel("SERVICE CATEGORY GROUP"),
+        _buildDropdownContainer(
+          child: DropdownButtonHideUnderline(
+            child: DropdownButtonFormField<String>(
+              value: _selectedGroupId,
+              isExpanded: true, // Prevents overflow for long names
+              dropdownColor: Colors.white,
+              items: controller.groups
+                  .map(
+                    (g) => DropdownMenuItem(
                       value: g.groupId,
                       child: Text(
                         g.name.toString(),
-                        style: const TextStyle(color: Kolors.kDark, fontSize: 14),
+                        style: const TextStyle(
+                          color: Kolors.kDark,
+                          fontSize: 14,
+                        ),
                       ),
-                    ))
-                .toList(),
-            onChanged: (v) => setState(() => _selectedGroupId = v),
-            decoration: const InputDecoration(
-              border: InputBorder.none,
-              hintText: "Select a group",
-              hintStyle: TextStyle(color: Colors.grey),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (v) => setState(() => _selectedGroupId = v),
+              decoration: const InputDecoration(
+                border: InputBorder.none,
+                hintText: "Select a group",
+                hintStyle: TextStyle(color: Colors.grey),
+              ),
             ),
           ),
         ),
-      ),
-      const SizedBox(height: 24),
-      _buildInputLabel("WHAT DO YOU CALL YOUR SERVICE?"),
-      _buildInputContainer(
-        child: TextFormField(
-          controller: _serviceNameController,
-          textCapitalization: TextCapitalization.words, // Better UX for names
-          style: const TextStyle(color: Kolors.kDark),
-          decoration: const InputDecoration(
-            hintText: "e.g. Specialized Piano Tuning",
-            hintStyle: TextStyle(color: Colors.grey),
-            border: InputBorder.none,
+        const SizedBox(height: 24),
+        _buildInputLabel("WHAT DO YOU CALL YOUR SERVICE?"),
+        _buildInputContainer(
+          child: TextFormField(
+            controller: _serviceNameController,
+            textCapitalization: TextCapitalization.words, // Better UX for names
+            style: const TextStyle(color: Kolors.kDark),
+            decoration: const InputDecoration(
+              hintText: "e.g. Specialized Piano Tuning",
+              hintStyle: TextStyle(color: Colors.grey),
+              border: InputBorder.none,
+            ),
           ),
         ),
-      ),
-    ],
-  );
-}
+      ],
+    );
+  }
+
   Widget _buildInputLabel(String label) => Padding(
     padding: const EdgeInsets.only(left: 4, bottom: 8),
     child: Text(

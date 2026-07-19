@@ -9,6 +9,17 @@ plugins {
     id("com.huawei.agconnect")
 }
 
+val localProperties = Properties()
+val localPropertiesFile = rootProject.file("local.properties")
+
+if (localPropertiesFile.exists()) {
+    localPropertiesFile.inputStream().use {
+        localProperties.load(it)
+    }
+}
+
+val mapsKey = localProperties.getProperty("MAPS_API_KEY") ?: ""
+
 val keystoreProperties = Properties()
 val keystorePropertiesFile = rootProject.file("key.properties")
 
@@ -27,6 +38,8 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "1.0.0"
+
+        manifestPlaceholders["mapsApiKey"] = mapsKey
     }
 
     signingConfigs {

@@ -1,90 +1,103 @@
-import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:flutter_application_2/common/controller/auth/auth_session_controller.dart';
+
+import 'package:flutter_application_2/common/controller/registration/api_client.dart';
+import 'package:flutter_application_2/common/controller/registration/api_exeption.dart';
+import 'package:http/http.dart' as http;
 
 class ConfirmSessionApi {
-  // 1. Declare base configurations first to fix initialization ordering bugs
-  static final String _baseUrl = dotenv.env['API_BASE_URL'] ?? '';
-
-  // 2. Initialize Interceptors before loading the Dio engine configuration
-  static final InterceptorsWrapper _authInterceptor = InterceptorsWrapper(
-    onRequest: (options, handler) async {
-      final token = _getAccessToken();
-      if (token != null && token.isNotEmpty) {
-        options.headers['Authorization'] = 'Bearer $token';
-      }
-      return handler.next(options);
-    },
-    onError: (DioException error, handler) {
-      if (kDebugMode) {
-        print('❌ Dio Error Intercepted [${error.response?.statusCode}]: ${error.message}');
-      }
-      return handler.next(error);
-    },
-  );
-
-  // 3. Instantiate Dio engine utilizing the pre-processed parameters above
-  static final Dio _dio = Dio(
-    BaseOptions(
-      baseUrl: _baseUrl,
-      connectTimeout: const Duration(seconds: 15),
-      receiveTimeout: const Duration(seconds: 15),
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-    ),
-  )..interceptors.add(_authInterceptor);
+  ConfirmSessionApi._();
 
   /// GET HTTP Transaction Wrapper
-  static Future<Response> get(
-    String path, {
+  static Future<http.Response> get(
+    Uri url, {
     Map<String, dynamic>? queryParameters,
-  }) async {
-    return _dio.get(path, queryParameters: queryParameters);
+  }) {
+    return ApiClient.instance.request(
+      (token) => http.get(
+        url.replace(queryParameters: queryParameters),
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
+      ),
+    );
   }
 
   /// POST HTTP Transaction Wrapper
-  static Future<Response> post(
-    String path, {
-    Map<String, dynamic>? body,
-  }) async {
-    return _dio.post(path, data: body);
+  static Future<http.Response> post(
+    Uri url, {
+    Object? body,
+  }) {
+    return ApiClient.instance.request(
+      (token) => http.post(
+        url,
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
+        body: body,
+      ),
+    );
   }
 
   /// PUT HTTP Transaction Wrapper
-  static Future<Response> put(
-    String path, {
-    Map<String, dynamic>? body,
-  }) async {
-    return _dio.put(path, data: body);
+  static Future<http.Response> put(
+    Uri url, {
+    Object? body,
+  }) {
+    return ApiClient.instance.request(
+      (token) => http.put(
+        url,
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
+        body: body,
+      ),
+    );
   }
 
   /// PATCH HTTP Transaction Wrapper
-  static Future<Response> patch(
-    String path, {
-    Map<String, dynamic>? body,
-  }) async {
-    return _dio.patch(path, data: body);
+  static Future<http.Response> patch(
+    Uri url, {
+    Object? body,
+  }) {
+    return ApiClient.instance.request(
+      (token) => http.patch(
+        url,
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
+        body: body,
+      ),
+    );
   }
 
   /// DELETE HTTP Transaction Wrapper
-  static Future<Response> delete(String path) async {
-    return _dio.delete(path);
+  static Future<http.Response> delete(
+    Uri url,
+  ) {
+    return ApiClient.instance.request(
+      (token) => http.delete(
+        url,
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
+      ),
+    );
   }
 
-  /// Extracts deep validation errors dropped by backend architectures safely
-  static String extractError(DioException e) {
-    final data = e.response?.data;
-    if (data is Map) {
-      return data['detail'] ?? data['message'] ?? 'Something went wrong';
+  static String extractError(Object error) {
+    if (error is ApiException) {
+      return error.message;
     }
-    return e.message ?? 'Network transaction error accrued.';
-  }
 
-  /// Pulls the active state token synchronously without asynchronous overhead
-  static String? _getAccessToken() {
-    return AuthSessionController.instance.accessToken;
+    return "Something went wrong.";
   }
 }

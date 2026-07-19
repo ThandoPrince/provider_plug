@@ -1,15 +1,24 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_application_2/common/controller/registration/api_client.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:http/http.dart' as http;
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:flutter_application_2/common/controller/auth/auth_session_controller.dart';
 
 class ProviderBookingSocketService {
+
+  ProviderBookingSocketService() {
+  
+}
+
+  
   WebSocketChannel? _channel;
   StreamSubscription? _subscription;
   Timer? _reconnectTimer;
-
+VoidCallback? onSocketReady;
+VoidCallback? onSocketLost;
   bool _isConnected = false;
   bool get isConnected => _isConnected;
   
@@ -20,93 +29,143 @@ class ProviderBookingSocketService {
   void Function()? onConnected;
   void Function()? onDisconnected;
   void Function(Object error)? onError;
+  
 
   /// Establishes an authenticated WebSocket connection.
-  Future<void> connect(String email) async {
-    _isExplicitlyDisconnected = false;
-    _lastConnectedEmail = email;
-    _cancelReconnectTimer();
-    disconnect(isExplicitDisconnect: false);
+  Future<void> connect() async {
 
-    final rawBaseUrl = (dotenv.env['API_BASE_URL'] ?? '').trim();
-    if (rawBaseUrl.isEmpty) {
-      throw Exception('API_BASE_URL is missing from environment variables.');
-    }
+    debugPrint(
+  "📡 connect() instance=${identityHashCode(this)}",
+);
+  _isExplicitlyDisconnected = false;
+  _cancelReconnectTimer();
+  disconnect(isExplicitDisconnect: false);
 
-    final baseUri = Uri.parse(rawBaseUrl);
-    final encodedEmail = Uri.encodeComponent(email.trim().toLowerCase());
-    final wsScheme = baseUri.scheme == 'https' ? 'wss' : 'ws';
-    
-    // Pull JWT token from the session storage singleton
-    final String? token = AuthSessionController.instance.accessToken;
+  final rawBaseUrl = (dotenv.env['API_BASE_URL'] ?? '').trim();
 
-    final wsUri = Uri(
-      scheme: wsScheme,
-      host: baseUri.host,
-      port: baseUri.hasPort ? baseUri.port : null,
-      path: '/ws/provider-bookings/$encodedEmail/',
-      queryParameters: {
-        if (token != null && token.isNotEmpty) 'token': token,
-      },
+  if (rawBaseUrl.isEmpty) {
+    throw Exception(
+      'API_BASE_URL is missing from environment variables.',
     );
+  }
 
+  final baseUri = Uri.parse(rawBaseUrl);
+
+  final wsScheme =
+      baseUri.scheme == 'https'
+          ? 'wss'
+          : 'ws';
+
+  final accessToken = ApiClient.instance.getAccessToken();
+
+  if (accessToken == null || accessToken.isEmpty) {
+    throw Exception("No access token available.");
+  }
+
+  final wsUri = Uri(
+    scheme: wsScheme,
+    host: baseUri.host,
+    port: baseUri.hasPort ? baseUri.port : null,
+    path: '/ws/provider/',
+    queryParameters: {
+      'token': accessToken,
+    },
+  );
+
+  if (kDebugMode) {
+    debugPrint("📡 Connecting Provider WebSocket: $wsUri");
+  }
+
+  try {
+    _channel = WebSocketChannel.connect(wsUri);
+
+    _subscription = _channel!.stream.listen(
+      
+      (message) {
+        debugPrint("RAW SOCKET MESSAGE: $message");
+        if (!_isConnected) {
+          _isConnected = true;
+          onConnected?.call();
+          onSocketReady?.call();
+        }
+
+        try {
+          final decoded = jsonDecode(message.toString());
+          debugPrint("onMessage null? ${onMessage == null}");
+
+          if (decoded is Map<String, dynamic>) {
+            onMessage?.call(decoded);
+          }
+        } catch (e) {
+          if (kDebugMode) {
+            debugPrint("❌ Failed to decode websocket message: $e");
+          }
+        }
+      },
+      onError: (error) async {
+        _isConnected = false;
+
+        if (kDebugMode) {
+          debugPrint("❌ Provider websocket error: $error");
+        }
+
+        onError?.call(error);
+
+        _handleAutoReconnect();
+      },
+      onDone: () {
+        _isConnected = false;
+
+        if (kDebugMode) {
+          debugPrint("🔌 Provider websocket disconnected.");
+        }
+
+        onDisconnected?.call();
+        onSocketLost?.call();
+
+        _handleAutoReconnect();
+      },
+      cancelOnError: false,
+    );
+  } catch (e) {
     if (kDebugMode) {
-      print('📡 Connecting WebSocket to: $wsUri');
+      debugPrint("❌ Failed to connect provider websocket: $e");
     }
 
-    try {
-      _channel = WebSocketChannel.connect(wsUri);
-      
-      _subscription = _channel!.stream.listen(
-        (message) {
-          if (!_isConnected) {
-            _isConnected = true;
-            onConnected?.call();
-          }
+    _handleAutoReconnect();
+  }
+}
 
-          if (kDebugMode) {
-            print('📨 WS Received: $message');
-          }
+Future<void> sendLocation({
+  required double latitude,
+  required double longitude,
+}) async {
 
-          try {
-            final dynamic decoded = jsonDecode(message.toString());
-            if (decoded is Map) {
-              onMessage?.call(Map<String, dynamic>.from(decoded));
-            }
-          } catch (e) {
-            if (kDebugMode) {
-              print('❌ WS JSON Parsing Error: $e');
-            }
-          }
-        },
-        onError: (error) {
-          _isConnected = false;
-          if (kDebugMode) {
-            print('❌ WS Connection Error: $error');
-          }
-          onError?.call(error);
-          _handleAutoReconnect();
-        },
-        onDone: () {
-          _isConnected = false;
-          if (kDebugMode) {
-            print('🔌 WS Connection Closed');
-          }
-          onDisconnected?.call();
-          _handleAutoReconnect();
-        },
-        cancelOnError: false,
-      );
-    } catch (e) {
-      if (kDebugMode) {
-        print('⚠️ WS Initialization failed: $e');
-      }
-      _handleAutoReconnect();
+  debugPrint(
+  "📤 sendLocation() instance=${identityHashCode(this)} connected=$_isConnected",
+);
+  if (!_isConnected || _channel == null) return;
+
+  try {
+    _channel!.sink.add(
+      jsonEncode({
+        "type": "location_update",
+        "latitude": latitude,
+        "longitude": longitude,
+      }),
+    );
+  } catch (e) {
+    if (kDebugMode) {
+      debugPrint("Failed to send provider location: $e");
     }
   }
+}
 
   /// Sends a heartbeat payload to maintain the connection.
   void sendPing() {
+    debugPrint(
+  "🏓 ping instance=${identityHashCode(this)}",
+);
     if (_channel == null || !_isConnected) return;
     try {
       _channel!.sink.add(jsonEncode({"type": "ping"}));
@@ -132,22 +191,39 @@ class ProviderBookingSocketService {
   }
 
   void _handleAutoReconnect() {
-    if (_isExplicitlyDisconnected || _lastConnectedEmail == null) return;
-    _cancelReconnectTimer();
+  if (_isExplicitlyDisconnected) return;
 
-    // Reconnect attempt backoff delay (e.g., 5 seconds)
-    _reconnectTimer = Timer(const Duration(seconds: 5), () {
-      if (!_isConnected && !_isExplicitlyDisconnected && _lastConnectedEmail != null) {
-        if (kDebugMode) {
-          print('🔄 Attempting WebSocket reconnect for: $_lastConnectedEmail');
-        }
-        connect(_lastConnectedEmail!);
+  _cancelReconnectTimer();
+
+  _reconnectTimer = Timer(
+    const Duration(seconds: 5),
+    () async {
+      if (_isConnected || _isExplicitlyDisconnected) {
+        return;
       }
-    });
-  }
+
+      try {
+        // Triggers token refresh if the current access token has expired.
+        await ApiClient.instance.request(
+          (token) async => http.Response('', 200),
+        );
+
+        await connect();
+      } catch (e) {
+        if (kDebugMode) {
+          debugPrint("❌ Provider websocket reconnect failed: $e");
+        }
+
+        _handleAutoReconnect();
+      }
+    },
+  );
+}
 
   void _cancelReconnectTimer() {
     _reconnectTimer?.cancel();
     _reconnectTimer = null;
   }
 }
+
+

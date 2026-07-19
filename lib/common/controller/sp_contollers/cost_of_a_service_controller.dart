@@ -14,7 +14,7 @@ class CostOfAServiceController extends ChangeNotifier {
 
   Future<bool> updateServiceCost({
     required String notes,
-    required String email,
+    
     required int serviceId,
     required double cost,
     String? token,
@@ -26,7 +26,7 @@ class CostOfAServiceController extends ChangeNotifier {
       notifyListeners();
 
       final response = await CostOfServiceApi.updateServiceCost(
-        email: email,
+       
         serviceId: serviceId,
         cost: cost,
        

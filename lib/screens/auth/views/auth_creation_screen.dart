@@ -17,10 +17,11 @@ class AuthCreationScreen extends StatefulWidget {
 
 class _AuthCreationScreenState extends State<AuthCreationScreen> {
   final _formKey = GlobalKey<FormState>();
-
+  final TextEditingController _confirmPasswordCtrl = TextEditingController();
   final TextEditingController _emailCtrl = TextEditingController();
   final TextEditingController _passwordCtrl = TextEditingController();
   final TextEditingController _mobileCtrl = TextEditingController();
+  bool _obscureConfirmText = true;
 
   bool _obscureText = true;
 
@@ -131,8 +132,38 @@ class _AuthCreationScreenState extends State<AuthCreationScreen> {
                             validator: (value) =>
                                 value!.length < 6 ? "Minimum 6 characters" : null,
                           ),
+                          SizedBox(height: 20.h),
+
+_buildLabel("CONFIRM PASSWORD"),
+_buildTextField(
+  controller: _confirmPasswordCtrl,
+  hint: "••••••••",
+  icon: Feather.lock,
+  obscureText: _obscureConfirmText,
+  suffixIcon: IconButton(
+    icon: Icon(
+      _obscureConfirmText ? Feather.eye_off : Feather.eye,
+      color: Colors.white38,
+      size: 20.sp,
+    ),
+    onPressed: () => setState(
+      () => _obscureConfirmText = !_obscureConfirmText,
+    ),
+  ),
+  validator: (value) {
+    if (value == null || value.isEmpty) {
+      return "Please confirm your password";
+    }
+
+    if (value != _passwordCtrl.text) {
+      return "Passwords do not match";
+    }
+
+    return null;
+  },
+),
                     
-                          SizedBox(height: 40.h),
+                          SizedBox(height: 20.h),
                     
                          
                           if (registerCtrl.errorMessage != null)

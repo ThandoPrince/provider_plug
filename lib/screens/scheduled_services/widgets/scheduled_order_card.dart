@@ -24,7 +24,13 @@ class ScheduledOrderCard extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 12),
       child: Card(
         color: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape: RoundedRectangleBorder(
+  borderRadius: BorderRadius.circular(16),
+  side: BorderSide(
+    color: statusColor.withOpacity(0.6),
+    width: 1.5,
+  ),
+),
         elevation: 3,
         child: InkWell(
           borderRadius: BorderRadius.circular(16),

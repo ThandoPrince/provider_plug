@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_application_2/common/controller/bookings/shipment_controller.dart';
+import 'package:flutter_application_2/common/services/session_socket_service.dart';
 import 'package:flutter_application_2/screens/schedule_directions/widgets/here_map_controller.dart';
 import 'package:flutter_application_2/screens/schedule_directions/widgets/marker_loader.dart';
 import 'package:flutter_application_2/screens/schedule_directions/widgets/navigate_screen.dart';
@@ -20,14 +21,17 @@ class HereDestinationScreen extends StatefulWidget {
   final double destinationLat;
   final double destinationLng;
   final int shipmentId;
-  final String? providerEmail;
+  final SessionSocketService sessionSocket;
+  
+ 
 
   const HereDestinationScreen({
+    required this.sessionSocket,
     super.key,
     required this.destinationLat,
     required this.shipmentId,
     required this.destinationLng,
-    required this.providerEmail,
+    
   });
 
   @override
@@ -58,6 +62,7 @@ class _HereDestinationScreenState extends State<HereDestinationScreen> {
   void _onMapCreated(HereMapController controller) async {
     _mapController = controller;
     _helper = HereMapControllerHelper(
+      sessionSocket: widget.sessionSocket,
       controller,
       shipmentId: widget.shipmentId, // ✅ pass the required argument
     );
@@ -200,7 +205,8 @@ void _zoomToRouteWithPadding(here.Route route) {
     context,
     MaterialPageRoute(
       builder: (_) => NavigationScreen(
-        providerEmail: widget.providerEmail,
+        sessionSocket: widget.sessionSocket,
+        
         shipmentId: widget.shipmentId,
         route: _currentRoute!,
         travelMode: _selectedMode,

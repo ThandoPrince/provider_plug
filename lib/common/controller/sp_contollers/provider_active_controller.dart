@@ -25,11 +25,11 @@ class ProviderActiveController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<bool> toggleActive(String email) async {
+  Future<bool> toggleActive() async {
     _isLoading = true;
     notifyListeners();
 
-    final result = await ToggleProviderActiveApi.toggleProviderActive(email);
+    final result = await ToggleProviderActiveApi.toggleProviderActive();
 
     if (result["success"] == true) {
       _isActive = result["is_active"] ?? _isActive;

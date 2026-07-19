@@ -1,100 +1,234 @@
-import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'package:flutter/foundation.dart';
+
+import 'package:flutter_application_2/common/controller/registration/api_client.dart';
+import 'package:flutter_application_2/common/controller/registration/api_exeption.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
-import 'package:flutter_application_2/common/controller/auth/auth_session_controller.dart';
 
 class SPAddressDocumentApiHelper {
   static final String baseUrl = dotenv.env['API_BASE_URL'] ?? '';
 
-  /// POST: Uploads address data alongside identity documents (e.g., Greenbook/Smart Card) via multipart encoding.
   static Future<Map<String, dynamic>> addAddressDocument({
-    required String email,
-    required Map<String, dynamic> address,
-    required String idType, // "greenbook" or "card"
-    File? frontFile,
-    File? backFile,
-  }) async {
-    final url = Uri.parse('$baseUrl/sp/upload/address_document/');
-    final String? token = AuthSessionController.instance.accessToken;
+  
+  required Map<String, dynamic> address,
+  required String idType,
+  File? frontFile,
+  File? backFile,
+
+  // 🔥 NEW
+  File? livenessVideo,
+}) async {
+    final url = Uri.parse(
+      '$baseUrl/sp/upload/address_document/',
+    );
 
     try {
-      final request = http.MultipartRequest('POST', url);
-      
-      // Inject global authorization headers into the multipart request
-      request.headers['Accept'] = 'application/json';
-      if (token != null && token.isNotEmpty) {
-        request.headers['Authorization'] = 'Bearer $token';
-      }
+      final response = await ApiClient.instance.multipartRequest(
+        (token) async {
+          final request = http.MultipartRequest(
+            'POST',
+            url,
+          );
 
-      // Populate form data text parameters
-      request.fields['email'] = email.trim().toLowerCase();
-      request.fields['id_type'] = idType.trim().toLowerCase();
+          request.headers.addAll({
+            'Accept': 'application/json',
+            if (token != null) 'Authorization': 'Bearer $token',
+          });
 
-      // Deep copy and sanitize spatial coordinates to exactly 6 decimal places (~10cm precision)
-      final Map<String, dynamic> sanitizedAddress = Map<String, dynamic>.from(address);
-      if (sanitizedAddress['latitude'] != null) {
-        sanitizedAddress['latitude'] = double.parse(sanitizedAddress['latitude'].toString()).toStringAsFixed(6);
-      }
-      if (sanitizedAddress['longitude'] != null) {
-        sanitizedAddress['longitude'] = double.parse(sanitizedAddress['longitude'].toString()).toStringAsFixed(6);
-      }
-      request.fields['address'] = jsonEncode(sanitizedAddress);
+          
 
-      // Attach identity media files safely
-      if (frontFile != null && await frontFile.exists()) {
-        request.files.add(await _createMultipartFile('front_file', frontFile));
-      }
-      if (backFile != null && await backFile.exists()) {
-        request.files.add(await _createMultipartFile('back_file', backFile));
-      }
+          request.fields['id_type'] =
+              idType.trim().toLowerCase();
 
-      // Dispatch request with a prolonged 30-second multi-part network timeout guard
-      final streamedResponse = await request.send().timeout(const Duration(seconds: 30));
-      final response = await http.Response.fromStream(streamedResponse);
-      
-      final dynamic decodedBody = response.body.isNotEmpty ? jsonDecode(response.body) : null;
-      final Map<String, dynamic> dataMap = decodedBody is Map ? Map<String, dynamic>.from(decodedBody) : {};
+          final sanitized =
+              Map<String, dynamic>.from(address);
 
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        return {"success": true, "data": dataMap};
-      } else {
-        if (kDebugMode) {
-          print('❌ KYC DOCUMENT UPLOAD REJECTED [${response.statusCode}]: ${response.body}');
-        }
-        return {
-          "success": false,
-          "statusCode": response.statusCode,
-          "message": dataMap["message"] ?? "Check your ID and Address details.",
-          "errors": dataMap["errors"] ?? dataMap,
-        };
+          if (sanitized['latitude'] != null) {
+            sanitized['latitude'] = double.parse(
+              sanitized['latitude'].toString(),
+            ).toStringAsFixed(6);
+          }
+
+          if (sanitized['longitude'] != null) {
+            sanitized['longitude'] = double.parse(
+              sanitized['longitude'].toString(),
+            ).toStringAsFixed(6);
+          }
+
+          request.fields['address'] =
+              jsonEncode(sanitized);
+
+          if (frontFile != null &&
+              await frontFile.exists()) {
+            request.files.add(
+              await _createMultipartFile(
+                'front_file',
+                frontFile,
+              ),
+            );
+          }
+
+          if (backFile != null &&
+              await backFile.exists()) {
+            request.files.add(
+              await _createMultipartFile(
+                'back_file',
+                backFile,
+              ),
+            );
+          }
+if (livenessVideo != null && await livenessVideo.exists()) {
+  request.files.add(
+    await _createMultipartFile(
+      'liveness_video',
+      livenessVideo,
+    ),
+  );
+}
+          return request;
+        },
+      );
+
+      final Map<String, dynamic> body =
+          response.body.isNotEmpty
+              ? Map<String, dynamic>.from(
+                  jsonDecode(response.body),
+                )
+              : {};
+
+      switch (response.statusCode) {
+        case 200:
+        case 201:
+          return {
+            "success": true,
+            "data": body,
+          };
+
+        case 400:
+          return {
+            "success": false,
+            "statusCode": 400,
+            "message":
+                body["message"] ??
+                "Invalid request.",
+            "errors":
+                body["errors"] ?? body,
+          };
+
+        case 403:
+          return {
+            "success": false,
+            "statusCode": 403,
+            "message":
+                body["message"] ??
+                "Permission denied.",
+          };
+
+        case 404:
+          return {
+            "success": false,
+            "statusCode": 404,
+            "message":
+                body["message"] ??
+                "Endpoint not found.",
+          };
+
+        case 413:
+          return {
+            "success": false,
+            "statusCode": 413,
+            "message":
+                "Uploaded file is too large.",
+          };
+
+        case 429:
+          return {
+            "success": false,
+            "statusCode": 429,
+            "message":
+                "Too many requests. Please try again later.",
+          };
+
+        case 500:
+        case 502:
+        case 503:
+          return {
+            "success": false,
+            "statusCode": response.statusCode,
+            "message":
+                "Server temporarily unavailable.",
+          };
+
+        default:
+          return {
+            "success": false,
+            "statusCode": response.statusCode,
+            "message":
+                body["message"] ??
+                "An unexpected server error occurred.",
+            "errors":
+                body["errors"] ?? body,
+          };
       }
-    } on SocketException {
-      return {"success": false, "message": "No internet connection. Please check your network."};
-    } on TimeoutException {
-      return {"success": false, "message": "The server took too long to respond. Try smaller photos or compress them."};
-    } catch (e) {
-      if (kDebugMode) print('⚠️ Exception caught in SPAddressDocumentApiHelper: $e');
-      return {"success": false, "message": "An unexpected error occurred during KYC verification."};
+    } on ApiException catch (e) {
+      return {
+        "success": false,
+        "message": e.message,
+      };
+    } catch (_) {
+      return {
+        "success": false,
+        "message":
+            "An unexpected error occurred.",
+      };
     }
   }
 
-  /// Helper utility to dynamically resolve multi-part file payloads and resolve mime-types cleanly
-  static Future<http.MultipartFile> _createMultipartFile(String fieldName, File file) async {
-    final String extension = file.path.split('.').last.toLowerCase();
-    
-    // Explicitly target PDF structures vs standard compressed images
-    final MediaType contentType = extension == 'pdf' 
-        ? MediaType('application', 'pdf') 
-        : MediaType('image', 'jpeg');
+static Future<http.MultipartFile> _createMultipartFile(
+  String fieldName,
+  File file,
+) async {
+  final extension = file.path.split('.').last.toLowerCase();
 
-    return http.MultipartFile.fromPath(
-      fieldName,
-      file.path,
-      contentType: contentType,
-    );
+  late final MediaType type;
+
+  switch (extension) {
+    case 'jpg':
+    case 'jpeg':
+      type = MediaType('image', 'jpeg');
+      break;
+
+    case 'png':
+      type = MediaType('image', 'png');
+      break;
+
+    case 'pdf':
+      type = MediaType('application', 'pdf');
+      break;
+
+    case 'mp4':
+      type = MediaType('video', 'mp4');
+      break;
+
+    case 'mov':
+      type = MediaType('video', 'quicktime');
+      break;
+
+    case 'avi':
+      type = MediaType('video', 'x-msvideo');
+      break;
+
+    default:
+      type = MediaType('application', 'octet-stream');
   }
+
+  return http.MultipartFile.fromPath(
+    fieldName,
+    file.path,
+    contentType: type,
+  );
+}
 }

@@ -1,150 +1,195 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_application_2/common/models/models/client_models/sp_live_location_post_model.dart';
+import 'package:flutter_application_2/common/services/provider_booking_socket_service.dart';
 import 'package:flutter_application_2/common/services/sp_live_location_post_api.dart';
 import 'package:geolocator/geolocator.dart';
 
 class SpLiveLocationPostController extends ChangeNotifier {
+  final ProviderBookingSocketService _socketService;
+
+  SpLiveLocationPostController(this._socketService) {
+  debugPrint("📍 SpLiveLocationPostController initialized");
+
+  _socketService.onConnected = () {
+    debugPrint("🟢 WebSocket connected");
+
+    if (_isTracking && _currentProviderId != null) {
+      debugPrint(
+        "📡 Restarting location upload after reconnect "
+        "(provider=$_currentProviderId)",
+      );
+
+      _sendLocation(_currentProviderId!);
+    }
+  };
+}
+
+
   Timer? _timer;
 
   bool _isTracking = false;
   bool _isSending = false;
   bool _disposed = false;
-  String? _currentEmail;
+
+  int? _currentProviderId;
 
   bool get isTracking => _isTracking;
   bool get isSending => _isSending;
-  String? get currentEmail => _currentEmail;
+  int? get currentProviderId => _currentProviderId;
 
-  /// Sync tracking with provider status (Guarded against status-stream redundancy)
+  /// Sync tracking with provider status
   Future<void> syncTrackingWithStatus({
-    required String email,
+    required int providerId,
     required bool isOnline,
   }) async {
-    final normalizedEmail = email.trim().toLowerCase();
-    
     if (isOnline) {
-      // Avoid re-triggering tracking if nothing has changed
-      if (_isTracking && _currentEmail == normalizedEmail) return;
-      await startTracking(email: normalizedEmail);
+      if (_isTracking && _currentProviderId == providerId) return;
+      await startTracking(providerId: providerId);
     } else {
       if (!_isTracking) return;
       stopTracking();
     }
   }
 
-  /// Start tracking with absolute guard setups
+  /// Start tracking
   Future<void> startTracking({
-    required String email,
-    int intervalSeconds = 30, // Relaxed telemetry window slightly for resource relief
+    required int providerId,
+    int intervalSeconds = 30,
   }) async {
-    final normalizedEmail = email.trim().toLowerCase();
-    if (normalizedEmail.isEmpty || _disposed) return;
+    debugPrint(
+    "🚀 ENTER startTracking(providerId=$providerId, disposed=$_disposed)",
+  );
 
-    // Hard blocker: Ensure previous timer instances are completely dropped *before* any async gaps
+    if (_disposed) return;
+
     _timer?.cancel();
     _timer = null;
 
-    final isSameEmail = _currentEmail == normalizedEmail;
-    if (_isTracking && isSameEmail) {
-      // Re-initialize periodic loop if it was dropped but state matches
-      _setupTimer(normalizedEmail, intervalSeconds);
+    final isSameProvider = _currentProviderId == providerId;
+
+    if (_isTracking && isSameProvider) {
+      _setupTimer(providerId, intervalSeconds);
       return;
     }
 
-    if (_isTracking && !isSameEmail) {
+    if (_isTracking && !isSameProvider) {
       stopTracking();
     }
 
-    _currentEmail = normalizedEmail;
+    _currentProviderId = providerId;
     _isTracking = true;
     _notify();
 
-    // Start periodic background loop prior to processing long execution steps
-    _setupTimer(normalizedEmail, intervalSeconds);
+    _setupTimer(providerId, intervalSeconds);
 
-    // Isolated tracking trigger
-    await _sendLocation(normalizedEmail);
+    await _sendLocation(providerId);
   }
 
-  /// Extracted timer setup logic to safely handle context bounds
-  void _setupTimer(String email, int intervalSeconds) {
+  void _setupTimer(int providerId, int intervalSeconds) {
     _timer?.cancel();
+
     _timer = Timer.periodic(Duration(seconds: intervalSeconds), (_) {
-      if (!_isTracking || _disposed || _currentEmail != email) {
+      if (!_isTracking ||
+          _disposed ||
+          _currentProviderId != providerId) {
         _timer?.cancel();
         return;
       }
-      // Fire-and-forget inside standard tick so it doesn't back up execution blocks
-      _sendLocation(email);
+
+      _sendLocation(providerId);
     });
   }
 
-  /// Stop tracking and purge system loop allocations
-  void stopTracking() {
-    _timer?.cancel();
-    _timer = null;
-    _isTracking = false;
-    _currentEmail = null;
+  /// Stop tracking
+  void stopTracking({bool notify = true}) {
+  _timer?.cancel();
+  _timer = null;
+
+  _isTracking = false;
+  _currentProviderId = null;
+
+  if (notify) {
     _notify();
   }
+}
 
-  /// Send location safely with concurrency protection and relaxed geolocator queries
-  Future<void> _sendLocation(String email) async {
-    if (_disposed || _isSending) return;
+  /// Send live location
+  Future<void> _sendLocation(int providerId) async {
+  debugPrint("📍 _sendLocation ENTER");
 
-    _isSending = true;
-    _notify();
+  if (_disposed || _isSending) {
+    debugPrint(
+      "❌ Returning (_disposed=$_disposed, _isSending=$_isSending)",
+    );
+    return;
+  }
 
-    try {
-      final hasPermission = await _ensurePermission();
-      if (!hasPermission || _disposed || !_isTracking) return;
+  _isSending = true;
+  debugPrint("📍 _isSending = true");
+  _notify();
 
-      // OPTIMIZATION: Swapped from getCurrentPosition (heavy hardware query) to getLastKnownPosition
-      // Falls back to standard query only if cache is completely empty.
-      Position? position = await Geolocator.getLastKnownPosition();
-      
-      position ??= await Geolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.low, // Balanced accuracy uses significantly less battery & CPU
-          timeLimit: const Duration(seconds: 5),
-        );
+  try {
+    debugPrint("📍 Checking permission");
+    final hasPermission = await _ensurePermission();
 
-      // Final dynamic sanity check after operational latency gap
-      if (_disposed || !_isTracking || _currentEmail != email) return;
+    debugPrint("📍 Permission = $hasPermission");
 
-      final model = SpLiveLocationPostModel(
-        email: email,
-        latitude: position.latitude,
-        longitude: position.longitude,
+    if (!hasPermission || _disposed || !_isTracking) {
+      debugPrint(
+        "❌ Aborting (permission=$hasPermission, disposed=$_disposed, tracking=$_isTracking)",
       );
-
-      final success = await SpLiveLocationService.sendLiveLocation(model);
-
-      if (!success) {
-        debugPrint("❌ Failed to send location telemetry packet");
-      }
-    } catch (e) {
-      debugPrint("❌ Location tracking exception caught: $e");
-    } finally {
-      if (!_disposed) {
-        _isSending = false;
-        _notify();
-      }
+      return;
     }
-  }
 
-  /// Handle permission constraints gracefully
+    debugPrint("📍 Getting last known position");
+
+    Position? position = await Geolocator.getLastKnownPosition();
+
+    debugPrint("📍 Last known = $position");
+
+    position ??= await Geolocator.getCurrentPosition(
+      desiredAccuracy: LocationAccuracy.low,
+    );
+
+    debugPrint(
+      "📍 Current position = ${position.latitude}, ${position.longitude}",
+    );
+
+    debugPrint("📡 Sending to websocket");
+
+    await _socketService.sendLocation(
+      latitude: position.latitude,
+      longitude: position.longitude,
+    );
+
+    debugPrint("✅ Websocket send finished");
+  } catch (e, stack) {
+    debugPrint("❌ _sendLocation exception");
+    debugPrint("$e");
+    debugPrint("$stack");
+  } finally {
+    _isSending = false;
+    debugPrint("📍 _isSending = false");
+    _notify();
+  }
+}
+
+  /// Check location permissions
   Future<bool> _ensurePermission() async {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+
     if (!serviceEnabled) return false;
 
-    LocationPermission permission = await Geolocator.checkPermission();
+    LocationPermission permission =
+        await Geolocator.checkPermission();
+
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
     }
 
-    return permission != LocationPermission.denied && 
-           permission != LocationPermission.deniedForever;
+    return permission != LocationPermission.denied &&
+        permission != LocationPermission.deniedForever;
   }
 
   void _notify() {

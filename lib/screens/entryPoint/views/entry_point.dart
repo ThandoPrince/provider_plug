@@ -62,20 +62,21 @@ class _EntryPointState extends State<EntryPoint> {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthSessionController>();
-    final email = auth.email;
+    final id = auth.id != null ? auth.accessToken : null; // Use accessToken as a placeholder for email
 
-    if (email == null) {
+    if (id == null) {
       return const Scaffold(
         body: Center(
           child: CircularProgressIndicator(),
         ),
       );
     }
+    final providerID = AuthSessionController.instance.id;
 
     final pages = [
-      HomeScreen(email: email),
-      ScheduledOrdersScreen(email: email),
-      SpProfileScreen(email: email),
+      HomeScreen(providerID: providerID!),
+      ScheduledOrdersScreen(providerID: providerID),
+      SpProfileScreen(),
     ];
 
     return Consumer<TabIndexNotifier>(
@@ -127,7 +128,7 @@ class _EntryPointState extends State<EntryPoint> {
           style: appStyle(18, Colors.white, FontWeight.bold),
         ),
         accountEmail: Text(
-          email, // Using the email variable from your build method
+          "email@example.com", // Using the email variable from your build method
           style: appStyle(12, Colors.white70, FontWeight.normal),
         ),
       ),
@@ -145,7 +146,7 @@ class _EntryPointState extends State<EntryPoint> {
                 title: 'My Job History',
                 onTap: () {
                    Navigator.pop(context);
-                  context.push('/sp_completed_service/$email');
+                  context.push('/sp_completed_service/');
                 },
               ),
               _buildDrawerTile(
@@ -154,7 +155,7 @@ class _EntryPointState extends State<EntryPoint> {
                 onTap: () {
                   Navigator.pop(context);
                   context.push(
-                    '/provider_linked_services?email=${Uri.encodeComponent(email)}',
+                    '/provider_linked_services',
                   );
                 },
               ),

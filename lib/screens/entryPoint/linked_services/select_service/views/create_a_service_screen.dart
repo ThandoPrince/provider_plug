@@ -8,9 +8,9 @@ import 'package:flutter_application_2/common/services/link_service_api.dart'; //
 import 'package:go_router/go_router.dart';
 
 class CreateAServiceScreen extends StatefulWidget {
-  final String providerEmail;
+  
 
-  const CreateAServiceScreen({required this.providerEmail, super.key});
+  const CreateAServiceScreen({ super.key});
 
   @override
   State<CreateAServiceScreen> createState() => _CreateAServiceScreenState();
@@ -65,7 +65,7 @@ class _CreateAServiceScreenState extends State<CreateAServiceScreen> {
         }
 
         // 3. Success Navigation
-        context.go('/providers/${widget.providerEmail}/add/$serviceId/cost');
+        context.go('/providers/add/$serviceId/cost');
         
       } else {
         // 4. Server-side validation or business logic failure

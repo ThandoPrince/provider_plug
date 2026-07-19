@@ -1,59 +1,80 @@
 import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
+import 'package:flutter_application_2/common/controller/registration/api_client.dart';
+import 'package:flutter_application_2/common/controller/registration/api_exeption.dart';
+import 'package:flutter_application_2/common/models/models/order_service_models/negotiation/negotiation_round_model.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
-import 'package:flutter_application_2/common/controller/auth/auth_session_controller.dart';
-import 'package:flutter_application_2/common/models/models/order_service_models/negotiation/negotiation_round_model.dart';
 
 class StartSpProviderNegotiationApi {
   static final String baseUrl = dotenv.env['API_BASE_URL'] ?? '';
 
-  /// POST: Starts a negotiation round for a provider with secure headers
+  /// POST: Starts a negotiation round for a provider.
   static Future<NegotiationRound?> startProviderRound({
     required int negotiationId,
-    required String providerEmail,
+   
     String? message,
     double? offeredPrice,
   }) async {
-    final url = Uri.parse('$baseUrl/bookings/service_orders/negotiation/$negotiationId/provider_start_round/');
+    final bodyPayload = <String, dynamic>{
     
-    // Auto-extract token from session state manager
-    final String? token = AuthSessionController.instance.accessToken;
-
-    final Map<String, dynamic> bodyPayload = {
-      'provider_email': providerEmail.trim().toLowerCase(),
-      if (message != null && message.trim().isNotEmpty) 'message': message.trim(),
+      if (message != null && message.trim().isNotEmpty)
+        'message': message.trim(),
       if (offeredPrice != null) 'offered_price': offeredPrice,
     };
 
     try {
-      final response = await http.post(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
-        },
-        body: jsonEncode(bodyPayload),
-      ).timeout(const Duration(seconds: 15));
+      final response = await ApiClient.instance.request(
+        (token) => http.post(
+          Uri.parse(
+            '$baseUrl/bookings/service_orders/negotiation/$negotiationId/provider_start_round/',
+          ),
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            if (token != null && token.isNotEmpty)
+              'Authorization': 'Bearer $token',
+          },
+          body: jsonEncode(bodyPayload),
+        ),
+      );
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        final dynamic decodedData = jsonDecode(response.body);
-        if (decodedData is Map) {
-          return NegotiationRound.fromJson(Map<String, dynamic>.from(decodedData));
+        final decoded = jsonDecode(response.body);
+
+        if (decoded is Map<String, dynamic>) {
+          return NegotiationRound.fromJson(decoded);
         }
-        return null;
-      } else {
-        if (kDebugMode) {
-          print('❌ Failed to start negotiation round [${response.statusCode}]: ${response.body}');
-        }
-        throw Exception('Server rejected negotiation initialization: [${response.statusCode}]');
+
+        throw const ApiException(
+          'Invalid response received from the server.',
+        );
       }
+
+      final data = response.body.isNotEmpty
+          ? jsonDecode(response.body) as Map<String, dynamic>
+          : <String, dynamic>{};
+
+      throw ApiException(
+        data['detail'] ??
+            data['message'] ??
+            'Failed to start negotiation round.',
+      );
+    } on ApiException {
+      rethrow;
+    } on FormatException {
+      throw const ApiException(
+        'Invalid response received from the server.',
+      );
     } catch (e) {
       if (kDebugMode) {
-        print('⚠️ Exception caught in StartSpProviderNegotiationApi: $e');
+        print('⚠️ StartSpProviderNegotiationApi: $e');
       }
-      throw Exception('Network or data processing error while starting negotiation: $e');
+
+      throw const ApiException(
+        'Failed to start negotiation round.',
+      );
     }
   }
 }

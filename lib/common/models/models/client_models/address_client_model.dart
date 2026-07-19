@@ -1,5 +1,5 @@
 import 'package:flutter_application_2/common/models/models/client_models/client_address_model.dart';
-import 'package:flutter_application_2/common/models/models/client_models/clients_details.dart';
+import 'package:flutter_application_2/common/models/models/client_models/clients_details_model.dart';
 
 class AddressClientModel {
   final int? id;

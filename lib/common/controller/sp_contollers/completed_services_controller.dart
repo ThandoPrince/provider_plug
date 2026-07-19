@@ -12,12 +12,12 @@ class ProviderRatingsController extends ChangeNotifier {
   List<RatingModel> get ratings => _ratings;
   bool get isLoading => _isLoading;
 
-  Future<void> fetchRatings(String email) async {
+  Future<void> fetchRatings() async {
     _isLoading = true;
     notifyListeners();
 
     try {
-      _ratings = await ProviderCompletedServicesApi.fetchRatingsByProviderEmail(email);
+      _ratings = await ProviderCompletedServicesApi.fetchRatingsByProviderEmail();
     } catch (e) {
       debugPrint("Error fetching provider ratings: $e");
       _ratings = [];

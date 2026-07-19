@@ -1,13 +1,7 @@
 class ClientAuthModel {
-  final String? emailAddress;
-  final String? mobileNumber;
-  final String? password;
+  final int? id;
 
-  ClientAuthModel({
-    this.emailAddress,
-    this.mobileNumber,
-    this.password,
-  });
+  ClientAuthModel({this.id});
 
   factory ClientAuthModel.fromJson(Map<String, dynamic>? json) {
     if (json == null) {
@@ -15,17 +9,15 @@ class ClientAuthModel {
     }
 
     return ClientAuthModel(
-      emailAddress: json['email_address'] as String?,
-      mobileNumber: json['mobile_number'] as String?,
-      password: json['password'] as String?,
+      id: json['id'] as int?,
+      
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
-      'email_address': emailAddress,
-      'mobile_number': mobileNumber,
-      'password': password,
+      'id': id,
+      
     };
   }
 }

@@ -1,13 +1,14 @@
 import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_application_2/common/services/session_socket_service.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:here_sdk/core.dart';
 import 'package:here_sdk/mapview.dart';
 import 'package:here_sdk/routing.dart' as here;
 
 import 'package:flutter_application_2/common/models/models/order_service_models/shipment_route_model.dart';
-import 'package:flutter_application_2/common/services/shipment_route_api.dart';
+
 
 /// Nullable helper
 extension Nullable<T> on T? {
@@ -22,6 +23,7 @@ enum TravelMode { car, pedestrian, bicycle, scooter }
 class HereMapControllerHelper {
   final HereMapController mapController;
   final here.RoutingEngine _routingEngine = here.RoutingEngine();
+  final SessionSocketService sessionSocket;
 
   MapPolyline? _routePolyline;
   MapMarker? _originMarker;
@@ -38,7 +40,12 @@ class HereMapControllerHelper {
 
    final double _minPostDistanceMeters;
 
-  HereMapControllerHelper(this.mapController, {required this.shipmentId, double minPostDistanceMeters = 10.0, }): _minPostDistanceMeters = minPostDistanceMeters;
+   HereMapControllerHelper(
+    this.mapController, {
+    required this.shipmentId,
+    required this.sessionSocket,
+    double minPostDistanceMeters = 10.0,
+  }) : _minPostDistanceMeters = minPostDistanceMeters;
 
   // ---------------------------
   // SERIALIZE ROUTE GEOMETRY
@@ -261,18 +268,32 @@ Future<void> focusOnLocation(Position pos) async {
         );
 
         try {
-          await ShipmentRouteApi.postShipmentRoute(routeModel);
-          if (kDebugMode) print("✅ ShipmentRoute posted for shipment $shipmentId");
-          _lastPostedCoordinates = geo; // update last posted position
-        } catch (e) {
-          if (kDebugMode) print("❌ Failed to post ShipmentRoute: $e");
-        }
+  await sessionSocket.sendRouteUpdate(routeModel);
+
+  if (kDebugMode) {
+    print("📡 Route sent via websocket");
+  }
+
+  _lastPostedCoordinates = geo;
+} catch (e) {
+  if (kDebugMode) {
+    print("❌ Failed sending websocket route: $e");
+  }
+}
       }
     });
   }
 
+    void stopNavigationTracking() {
+    _positionSubscription?.cancel();
+    _positionSubscription = null;
+  }
+
+  
+
   void dispose() {
     _positionSubscription?.cancel();
+    stopNavigationTracking();
   }
 
   

@@ -14,7 +14,7 @@ class SPProfileCreationController extends ChangeNotifier {
 
 
   Future<bool> patchProfile({
-    required String email,
+ 
     required String fullName,
     required String gender,
     required String idNumber,

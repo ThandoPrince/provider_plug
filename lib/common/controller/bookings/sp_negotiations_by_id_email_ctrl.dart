@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_application_2/common/models/models/order_service_models/negotiation/negotiation_model.dart';
+import 'package:flutter_application_2/common/models/models/order_service_models/negotiation/negotiation_round_model.dart';
 import 'package:flutter_application_2/common/services/get_sp_negotiation_api.dart';
 
 class SpNegotiationsByIdEmailCtrl extends ChangeNotifier {
@@ -16,8 +17,8 @@ class SpNegotiationsByIdEmailCtrl extends ChangeNotifier {
   // Helpers
   // ──────────────────────────
 
-  String _key(int orderId, String email) =>
-      '$orderId|${email.trim().toLowerCase()}';
+  String _key(int orderId) =>
+      '$orderId';
 
   List<NegotiationModel> negotiations(String key) =>
       _negotiationsMap[key] ?? [];
@@ -32,44 +33,127 @@ class SpNegotiationsByIdEmailCtrl extends ChangeNotifier {
 
   /// Initial load (cached)
   Future<void> loadNegotiations({
-    required int orderId,
-    required String email,
-    bool forceRefresh = false,
-  }) async {
-    final key = _key(orderId, email);
+  required int orderId,
+  bool forceRefresh = false,
+}) async {
+  debugPrint("loadNegotiations controller = $hashCode");
+  final key = _key(orderId);
 
-    // Prevent duplicate requests unless forced
-    if (isLoading(key)) return;
-    if (!forceRefresh && _negotiationsMap.containsKey(key)) return;
+  debugPrint("loadNegotiations($orderId)");
 
-    _setLoading(key, true);
-    _errorMap[key] = null;
+  if (isLoading(key)) {
+    debugPrint("Already loading");
+    return;
+  }
 
-    try {
-      final fetched = await GetSpNegotiationApi.fetchNegotiations(
-        orderId: orderId,
-        email: email,
+  if (!forceRefresh && _negotiationsMap.containsKey(key)) {
+    debugPrint("Already cached");
+    return;
+  }
+
+  _setLoading(key, true);
+
+  try {
+    final fetched = await GetSpNegotiationApi.fetchNegotiations(
+      orderId: orderId,
+    );
+
+    debugPrint("Fetched ${fetched.length} negotiations");
+
+    _negotiationsMap[key] = fetched;
+
+    debugPrint("Current keys: ${_negotiationsMap.keys}");
+
+    for (final n in fetched) {
+      debugPrint("Negotiation id = ${n.negotiationId}");
+    }
+  } catch (e) {
+    debugPrint("LOAD ERROR: $e");
+    _negotiationsMap[key] = [];
+  } finally {
+    _setLoading(key, false);
+  }
+}
+
+
+void handleSocketEvent(Map<String, dynamic> data) {
+  debugPrint("handleSocketEvent controller = $hashCode");
+  debugPrint("handleSocketEvent: $data");
+
+  switch(data["action"]) {
+
+    case "new_round":
+
+      final round = NegotiationRound.fromJson(
+        data["round"],
+      );
+       debugPrint("Adding round ${round.id}");
+
+      addRound(
+        data["negotiation_id"],
+        round,
       );
 
-      _negotiationsMap[key] = fetched;
+      break;
+  }
+}
 
-      if (fetched.isEmpty) {
-        _errorMap[key] = 'No negotiations found';
+void addRound(
+  int negotiationId,
+  NegotiationRound round,
+) {
+  debugPrint("_negotiationsMap keys: ${_negotiationsMap.keys}");
+  debugPrint("Looking for negotiation $negotiationId");
+
+  for (final entry in _negotiationsMap.entries) {
+    debugPrint("KEY = ${entry.key}");
+    debugPrint("Order key: ${entry.key}");
+
+
+
+    for (final negotiation in entry.value) {
+      
+      debugPrint(
+          "Cached negotiation = ${negotiation.negotiationId}");
+          debugPrint(
+        "Negotiation cached: ${negotiation.negotiationId}",
+      );
+
+      if (negotiation.negotiationId == negotiationId) {
+        debugPrint("FOUND!");
+
+        final rounds = negotiation.rounds;
+
+        if (rounds == null) {
+          debugPrint("Rounds is null");
+          return;
+        }
+
+        final exists = rounds.any((r) => r.id == round.id);
+
+        debugPrint("Exists = $exists");
+
+        if (!exists) {
+          rounds.add(round);
+          debugPrint("Added round");
+          notifyListeners();
+        }
+
+        return;
       }
-    } catch (e) {
-      _negotiationsMap[key] = [];
-      _errorMap[key] = e.toString();
-    } finally {
-      _setLoading(key, false);
     }
   }
+
+  debugPrint("Negotiation NOT FOUND");
+}
+
 
   /// 🔥 Force refresh (used after Send / Accept)
   Future<void> refreshNegotiations({
     required int orderId,
-    required String email,
+    
   }) async {
-    final key = _key(orderId, email);
+    final key = _key(orderId);
 
     // Keep old data while refreshing (important for AnimatedList)
     _errorMap[key] = null;
@@ -77,7 +161,7 @@ class SpNegotiationsByIdEmailCtrl extends ChangeNotifier {
 
     await loadNegotiations(
       orderId: orderId,
-      email: email,
+     
       forceRefresh: true,
     );
   }
@@ -87,7 +171,7 @@ class SpNegotiationsByIdEmailCtrl extends ChangeNotifier {
     required int orderId,
     required String email,
   }) {
-    final key = _key(orderId, email);
+    final key = _key(orderId);
     _negotiationsMap.remove(key);
     _loadingMap.remove(key);
     _errorMap.remove(key);

@@ -13,6 +13,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 class SPLoginController extends ChangeNotifier {
   final SPLoginApi _api = SPLoginApi();
 
+
   bool _isLoading = false;
   bool get isLoading => _isLoading;
   
@@ -48,7 +49,7 @@ class SPLoginController extends ChangeNotifier {
 
         await AuthSessionController.instance.setSession(
           id: result.data!.id,
-          email: result.data!.email,
+        
           accessToken: freshAccessToken,
           refreshToken: result.data!.refreshToken,
         );

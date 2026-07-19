@@ -179,7 +179,7 @@ class _RatingsScreenState extends State<RatingsScreen> {
                               opacity: isSelected ? 1.0 : 0.2,
                               child: Icon(
                                 Icons.star_rounded,
-                                color: isSelected ? Colors.white : Colors.white,
+                                color: isSelected ? Kolors.kPrimary : Kolors.kPrimary,
                                 size: 56,
                               ),
                             ),
@@ -231,7 +231,7 @@ class _RatingsScreenState extends State<RatingsScreen> {
                   height: 64,
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: _selectedScore == 0 ? Colors.white.withOpacity(0.1) : Colors.white,
+                      backgroundColor: _selectedScore == 0 ? Kolors.kGray.withOpacity(0.1) : Kolors.kPrimary,
                       foregroundColor: Colors.black,
                       elevation: 0,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -241,7 +241,7 @@ class _RatingsScreenState extends State<RatingsScreen> {
                         : () async {
                             final success = await controller.submitRating(
                               sessionId: widget.sessionId.toString(),
-                              providerEmail: widget.providerEmail,
+                              
                               score: _selectedScore,
                               review: _reviewController.text,
                             );
@@ -257,7 +257,7 @@ class _RatingsScreenState extends State<RatingsScreen> {
                             style: TextStyle(
                               fontWeight: FontWeight.w900, 
                               letterSpacing: 1.5,
-                              color: _selectedScore == 0 ? Kolors.kPrimary : Kolors.kOffWhite
+                              color: _selectedScore == 0 ? Kolors.kOffWhite : Kolors.kOffWhite
                             ),
                           ),
                   ),
@@ -288,6 +288,12 @@ class _RatingsScreenState extends State<RatingsScreen> {
               const Text("Well Done!", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 22)),
               const SizedBox(height: 32),
               ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                      backgroundColor:  Kolors.kPrimary,
+                      foregroundColor: Colors.black,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                    ),
                 onPressed: () {
                     Navigator.of(context, rootNavigator: true).pop();
                     context.read<TabIndexNotifier>().setIndex(0);
@@ -296,7 +302,7 @@ class _RatingsScreenState extends State<RatingsScreen> {
                       (route) => false,
                     );
                 },
-                child: const Text("FINISH"),
+                child: const Text("FINISH", style: TextStyle(color: Kolors.kOffWhite),),
               )
             ],
           ),

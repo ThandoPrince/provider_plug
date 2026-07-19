@@ -3,58 +3,104 @@ import 'package:flutter_application_2/common/models/models/order_service_models/
 import 'package:flutter_application_2/common/services/start_sp_provider_negotiation_api.dart';
 
 class SpNegotiationRoundCtrl with ChangeNotifier {
-  bool _isLoading = false;
   String? _errorMessage;
-  NegotiationRound? _latestRound;
-  bool _inNegotiation = false; // 
+  bool _inNegotiation = false;
 
-  bool get isLoading => _isLoading;
+  /// Pending (optimistic) rounds, keyed by negotiationId so multiple
+  /// negotiation threads never bleed into each other.
+  final Map<int, List<NegotiationRound>> _pendingByNegotiation = {};
+
   String? get errorMessage => _errorMessage;
-  NegotiationRound? get latestRound => _latestRound;
   bool get inNegotiation => _inNegotiation;
 
-  
-  Future<void> startRound({
+  List<NegotiationRound> pendingRoundsFor(int? negotiationId) {
+    if (negotiationId == null) return const [];
+    return List.unmodifiable(_pendingByNegotiation[negotiationId] ?? const []);
+  }
+
+  /// Immediately adds a "sending" bubble and returns its tempId.
+  /// Call this BEFORE awaiting the network call.
+  String addPendingRound({
     required int negotiationId,
-    required String providerEmail,
+    String? message,
+    double? offeredPrice,
+  }) {
+    final tempId = 'temp_${DateTime.now().microsecondsSinceEpoch}';
+    final pending = NegotiationRound(
+      senderType: 'provider',
+      message: message,
+      offeredPrice: offeredPrice,
+      createdAt: DateTime.now(),
+      localId: tempId,
+      localStatus: RoundLocalStatus.sending,
+    );
+
+    final list = _pendingByNegotiation.putIfAbsent(negotiationId, () => []);
+    list.add(pending);
+    notifyListeners();
+    return tempId;
+  }
+
+  void _markPending(int negotiationId, String tempId, RoundLocalStatus status) {
+    final list = _pendingByNegotiation[negotiationId];
+    if (list == null) return;
+    final idx = list.indexWhere((r) => r.localId == tempId);
+    if (idx == -1) return;
+    list[idx] = list[idx].copyWith(localStatus: status);
+    notifyListeners();
+  }
+
+  void removePendingRound(int negotiationId, String tempId) {
+    _pendingByNegotiation[negotiationId]?.removeWhere((r) => r.localId == tempId);
+    notifyListeners();
+  }
+
+  /// Performs the actual API call. UI should already be showing the
+  /// pending bubble (via addPendingRound) before calling this.
+  Future<bool> sendRound({
+    required int negotiationId,
+    required String tempId,
     String? message,
     double? offeredPrice,
   }) async {
-    _isLoading = true;
     _errorMessage = null;
-    notifyListeners();
+    _markPending(negotiationId, tempId, RoundLocalStatus.sending);
 
     try {
       final round = await StartSpProviderNegotiationApi.startProviderRound(
         negotiationId: negotiationId,
-        providerEmail: providerEmail,
         message: message,
         offeredPrice: offeredPrice,
       );
 
-      if (round != null) {
-        _latestRound = round;
-        _inNegotiation = true; 
-      } else {
+      if (round == null) {
+        _markPending(negotiationId, tempId, RoundLocalStatus.failed);
         _errorMessage = "Failed to start negotiation round.";
+        notifyListeners();
+        return false;
       }
+
+      _inNegotiation = true;
+      // Server confirmed it — the real round will come back through
+      // refreshNegotiations(), so drop the temp placeholder.
+      removePendingRound(negotiationId, tempId);
+      notifyListeners();
+      return true;
     } catch (e) {
+      _markPending(negotiationId, tempId, RoundLocalStatus.failed);
       _errorMessage = "Error: ${e.toString()}";
       if (kDebugMode) {
-        print("❌ [SpNegotiationRoundCtrl] startRound() failed: $e");
+        print("❌ [SpNegotiationRoundCtrl] sendRound() failed: $e");
       }
-    } finally {
-      _isLoading = false;
       notifyListeners();
+      return false;
     }
   }
 
-  /// Resets the negotiation controller (optional for UI cleanup)
   void reset() {
-    _isLoading = false;
     _errorMessage = null;
-    _latestRound = null;
     _inNegotiation = false;
+    _pendingByNegotiation.clear();
     notifyListeners();
   }
 }

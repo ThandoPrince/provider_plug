@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -6,24 +7,28 @@ import 'package:flutter_application_2/common/controller/bookings/shipment_by_id_
 import 'package:flutter_application_2/common/controller/bookings/shipment_controller.dart';
 import 'package:flutter_application_2/common/services/confirm_session_api.dart';
 import 'package:flutter_application_2/common/services/session_by_shipment_api.dart';
+import 'package:flutter_application_2/common/services/session_socket_service.dart';
 import 'package:flutter_application_2/common/utils/kcolors.dart';
 import 'package:flutter_application_2/screens/scan_session_qr_code/widgets/session_live_location_helper.dart';
 import 'package:flutter_application_2/screens/scan_session_qr_code/widgets/header_widget.dart';
 import 'package:flutter_application_2/screens/scan_session_qr_code/widgets/laser_overlay_widget.dart';
 import 'package:flutter_application_2/screens/scheduled_services_details/widgets/schedule_flushbar_widget.dart';
 import 'package:flutter_application_2/screens/session/views/session_screen.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:provider/provider.dart';
 
 class SessionInitiationQrScreen extends StatefulWidget {
   final int shipmentId;
-  final String? providerEmail;
+  final SessionSocketService sessionSocket;
+ 
 
   const SessionInitiationQrScreen({
     super.key,
     required this.shipmentId,
-    required this.providerEmail,
+    required this.sessionSocket,
+   
   });
 
   @override
@@ -237,71 +242,92 @@ class _SessionInitiationQrScreenState extends State<SessionInitiationQrScreen>
   }
 
   Future<void> _confirmCheckin(BuildContext context, String token) async {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => const Center(
-        child: CircularProgressIndicator(color: Kolors.kPrimary),
+  showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (_) => const Center(
+      child: CircularProgressIndicator(color: Kolors.kPrimary),
+    ),
+  );
+
+  try {
+    final location = await CheckinLocationService.getCurrentLocation();
+
+    final locationPayload = {
+      "latitude": location.latitude,
+      "longitude": location.longitude,
+      "accuracy": location.accuracy,
+    };
+
+    final response = await ConfirmSessionApi.post(
+      Uri.parse(
+        "${dotenv.env['API_BASE_URL']}/bookings/sessions/confirm_checkin/",
       ),
+      body: jsonEncode({
+        "checkin_token": token,
+        "checkin_location": locationPayload,
+      }),
     );
 
+    final Map<String, dynamic> data =
+        response.body.isNotEmpty
+            ? Map<String, dynamic>.from(jsonDecode(response.body))
+            : {};
+
+    if (response.statusCode != 200) {
+      throw data["detail"] ?? "Invalid QR code";
+    }
+
+    final shipmentId =
+        data["shipment"]["shipment_id"].toString();
+
+    final session =
+        await SessionApi.getSessionByShipment(shipmentId);
+
+    if (Navigator.canPop(context)) {
+      Navigator.pop(context);
+    }
+
     try {
-      final location = await CheckinLocationService.getCurrentLocation();
+      final shipmentCtrl =
+          context.read<ShipmentController>();
 
-      final locationPayload = {
-        "latitude": location.latitude,
-        "longitude": location.longitude,
-        "accuracy": location.accuracy,
-      };
-
-      final response = await ConfirmSessionApi.post(
-        "/bookings/sessions/confirm_checkin/",
-        body: {
-          "checkin_token": token,
-          "checkin_location": locationPayload,
-        },
-      );
-
-      if (response.statusCode != 200) {
-        throw response.data["detail"] ?? "Invalid QR code";
-      }
-
-      final shipmentId = response.data['shipment']['shipment_id'].toString();
-      final session = await SessionApi.getSessionByShipment(shipmentId);
-
-      if (Navigator.canPop(context)) {
-        Navigator.pop(context);
-      }
-
-      try {
-        final shipmentCtrl = context.read<ShipmentController>();
-        await shipmentCtrl.fetchShipments(widget.providerEmail ?? "");
-      } catch (e) {
-        debugPrint("⚠️ Shipment refresh failed after check-in: $e");
-      }
-
-      if (!mounted) return;
-
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(
-          builder: (_) => SessionScreen(
-            session: session,
-            initialLocation: location,
-            providerEmail: widget.providerEmail,
-          ),
-        ),
-        (route) => route.isFirst,
+      await shipmentCtrl.fetchShipments(
+        
       );
     } catch (e) {
-      if (Navigator.canPop(context)) {
-        Navigator.pop(context);
-      }
-
-      await cameraController.start();
-
-      if (!mounted) return;
-      ScheduleFlushbar.error(context, "Check-in failed: ${e.toString()}");
+      debugPrint(
+        "⚠️ Shipment refresh failed after check-in: $e",
+      );
     }
+
+    if (!mounted) return;
+
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(
+        builder: (_) => SessionScreen(
+          session: session,
+          initialLocation: location,
+          sessionSocket: widget.sessionSocket,
+          
+        ),
+      ),
+      (route) => route.isFirst,
+    );
+  } catch (e) {
+    if (Navigator.canPop(context)) {
+      Navigator.pop(context);
+    }
+
+    await cameraController.start();
+
+    if (!mounted) return;
+
+    ScheduleFlushbar.error(
+      context,
+      "Check-in failed: ${e.toString()}",
+    );
   }
+}
 }

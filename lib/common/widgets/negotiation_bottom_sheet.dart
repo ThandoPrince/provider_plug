@@ -8,20 +8,14 @@ import 'package:flutter_application_2/common/models/models/order_service_models/
 import 'package:flutter_application_2/common/utils/kcolors.dart';
 import 'package:flutter_application_2/common/widgets/show_top_notification.dart';
 import 'package:flutter_application_2/screens/entryPoint/controller/bottom_tab_notifier.dart';
-// import 'package:flutter_application_2/screens/entryPoint/home/views/home_screen.dart'; // Unused import
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:another_flushbar/flushbar.dart';
 
 class NegotiationBottomSheetContent extends StatefulWidget {
   final int orderId;
-  final String providerEmail;
 
-  const NegotiationBottomSheetContent({
-    super.key,
-    required this.orderId,
-    required this.providerEmail,
-  });
+  const NegotiationBottomSheetContent({super.key, required this.orderId});
 
   @override
   State<NegotiationBottomSheetContent> createState() =>
@@ -30,20 +24,23 @@ class NegotiationBottomSheetContent extends StatefulWidget {
 
 class _NegotiationBottomSheetContentState
     extends State<NegotiationBottomSheetContent> {
-  final GlobalKey<AnimatedListState> _listKey = GlobalKey<AnimatedListState>();
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _messageController = TextEditingController();
   final TextEditingController _priceController = TextEditingController();
   final FocusNode _messageFocusNode = FocusNode();
 
-  List<NegotiationRound> _displayedRounds = [];
   int? _negotiationId;
-  bool _isAccepted = false; // Internal state to manage UI after acceptance
+
+  /// Optimistic flag so the "Accepted" UI shows the instant the button is
+  /// tapped, instead of waiting for the network round trip.
+  bool _optimisticAccepted = false;
 
   @override
   void initState() {
     super.initState();
-    _fetchNegotiationId();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _fetchNegotiationId();
+    });
   }
 
   @override
@@ -55,59 +52,23 @@ class _NegotiationBottomSheetContentState
     super.dispose();
   }
 
-  void _fetchNegotiationId() {
-    final key = '${widget.orderId}|${widget.providerEmail}';
-    // Use read/listen: false here as this is called in initState
-    final controller = Provider.of<SpNegotiationsByIdEmailCtrl>(
-      context,
-      listen: false,
-    );
+  Future<void> _fetchNegotiationId() async {
+    final controller = context.read<SpNegotiationsByIdEmailCtrl>();
 
-    try {
-      final negotiations = controller.negotiations(key);
-      if (negotiations.isNotEmpty) {
-        // Check if the negotiation is already marked as accepted or completed
-        if (negotiations.first.status == 'accepted') {
-          _isAccepted = true;
-        }
-        setState(() => _negotiationId = negotiations.first.negotiationId);
-      }
-    } catch (e) {
-      if (kDebugMode) print('❌ Error fetching negotiation ID: $e');
-    }
-  }
+    await controller.loadNegotiations(orderId: widget.orderId);
 
-  /// Only call insertItem for new rounds and use a post-frame callback
-  void _updateRounds(List<NegotiationRound> newRounds) {
-  final sortedRounds = [...newRounds]
-    ..sort((a, b) {
-      final aTime = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-      final bTime = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
-      return aTime.compareTo(bTime);
-    });
+    if (!mounted) return;
 
-  if (sortedRounds.length > _displayedRounds.length) {
-    final roundsToAdd = sortedRounds.skip(_displayedRounds.length).toList();
+    final negotiations = controller.negotiations('${widget.orderId}');
+    if (negotiations.isEmpty) return;
 
-    _displayedRounds.addAll(roundsToAdd);
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_listKey.currentState != null) {
-        for (int i = 0; i < roundsToAdd.length; i++) {
-          _listKey.currentState!.insertItem(
-            _displayedRounds.length - roundsToAdd.length + i,
-            duration: const Duration(milliseconds: 300),
-          );
-        }
-        _scrollToBottom();
-      }
+    setState(() {
+      _negotiationId = negotiations.first.negotiationId;
     });
   }
-}
 
   void _scrollToBottom() {
-    // Slight delay to ensure the list has finished inserting/building all new items
-    Future.delayed(const Duration(milliseconds: 400), () {
+    Future.delayed(const Duration(milliseconds: 250), () {
       if (_scrollController.hasClients) {
         _scrollController.animateTo(
           _scrollController.position.maxScrollExtent,
@@ -118,69 +79,99 @@ class _NegotiationBottomSheetContentState
     });
   }
 
+  /// Optimistic send: the bubble appears immediately (WhatsApp-style),
+  /// then reconciles with the server in the background.
   Future<void> _sendMessage(
-  SpNegotiationRoundCtrl roundCtrl,
-  SpNegotiationsByIdEmailCtrl negotiationsCtrl,
-) async {
-  if (_negotiationId == null) {
-    showTopNotification(context, 'Negotiation ID not found.', isError: true);
-    return;
-  }
+    SpNegotiationRoundCtrl roundCtrl,
+    SpNegotiationsByIdEmailCtrl negotiationsCtrl,
+  ) async {
+    if (_negotiationId == null) {
+      showTopNotification(context, 'Negotiation ID not found.', isError: true);
+      return;
+    }
 
-  final message = _messageController.text.trim();
-  final priceText = _priceController.text.trim();
-  final offeredPrice = double.tryParse(priceText);
+    final message = _messageController.text.trim();
+    final priceText = _priceController.text.trim();
+    final offeredPrice = double.tryParse(priceText);
 
-  if (offeredPrice == null && message.isEmpty) return;
+    if (offeredPrice == null && message.isEmpty) return;
 
-  if (priceText.isNotEmpty && offeredPrice == null) {
-    showTopNotification(context, 'Invalid price format', isError: true);
-    return;
-  }
+    if (priceText.isNotEmpty && offeredPrice == null) {
+      showTopNotification(context, 'Invalid price format', isError: true);
+      return;
+    }
 
-  _messageController.clear();
-  _priceController.clear();
-  FocusScope.of(context).unfocus();
+    _messageController.clear();
+    _priceController.clear();
+    FocusScope.of(context).unfocus();
 
-  try {
-    await roundCtrl.startRound(
+    // 1. Show the bubble instantly — no await before this point.
+    final tempId = roundCtrl.addPendingRound(
       negotiationId: _negotiationId!,
-      providerEmail: widget.providerEmail,
+      message: message.isEmpty ? null : message,
+      offeredPrice: offeredPrice,
+    );
+    _scrollToBottom();
+
+    // 2. Fire the request in the background and reconcile after.
+    final success = await roundCtrl.sendRound(
+      negotiationId: _negotiationId!,
+      tempId: tempId,
       message: message.isEmpty ? null : message,
       offeredPrice: offeredPrice,
     );
 
     if (!mounted) return;
 
-    await negotiationsCtrl.refreshNegotiations(
-      orderId: widget.orderId,
-      email: widget.providerEmail,
+    if (success) {
+      // Silent refresh — no spinner over the list, just swaps the temp
+      // bubble for the confirmed one.
+      await negotiationsCtrl.refreshNegotiations(orderId: widget.orderId);
+    } else {
+      // Bubble is now flagged "failed" by the controller — let the user
+      // retry by tapping it instead of a generic toast-only failure.
+      showTopNotification(
+        context,
+        'Failed to send negotiation round. Tap the message to retry.',
+        isError: true,
+      );
+    }
+  }
+
+  Future<void> _retryPendingRound(
+    NegotiationRound pending,
+    SpNegotiationRoundCtrl roundCtrl,
+    SpNegotiationsByIdEmailCtrl negotiationsCtrl,
+  ) async {
+    if (_negotiationId == null || pending.localId == null) return;
+
+    final success = await roundCtrl.sendRound(
+      negotiationId: _negotiationId!,
+      tempId: pending.localId!,
+      message: pending.message,
+      offeredPrice: pending.offeredPrice,
     );
 
     if (!mounted) return;
 
-    // Do NOT manually add latestRound here.
-    // _updateRounds() inside build() will handle inserting new items.
-
-    showTopNotification(context, 'Message sent');
-  } catch (e) {
-    if (kDebugMode) {
-      print('❌ Failed to send negotiation round: $e');
+    if (success) {
+      await negotiationsCtrl.refreshNegotiations(orderId: widget.orderId);
+    } else {
+      showTopNotification(context, 'Still failed to send.', isError: true);
     }
-    showTopNotification(
-      context,
-      'Failed to send negotiation round.',
-      isError: true,
-    );
   }
-}
+
+  void _discardPendingRound(NegotiationRound pending, SpNegotiationRoundCtrl roundCtrl) {
+    if (_negotiationId == null || pending.localId == null) return;
+    roundCtrl.removePendingRound(_negotiationId!, pending.localId!);
+  }
 
   @override
   Widget build(BuildContext context) {
-    final key = '${widget.orderId}|${widget.providerEmail}';
+    final key = '${widget.orderId}';
 
-    return Consumer<SpNegotiationsByIdEmailCtrl>(
-      builder: (context, controller, _) {
+    return Consumer2<SpNegotiationsByIdEmailCtrl, SpNegotiationRoundCtrl>(
+      builder: (context, controller, roundCtrl, _) {
         if (controller.isLoading(key)) {
           return const Center(child: CircularProgressIndicator());
         }
@@ -199,21 +190,38 @@ class _NegotiationBottomSheetContentState
           _negotiationId = negotiations.first.negotiationId;
         }
 
-        // Use the controller's latest status to determine acceptance state
-        if (negotiations.isNotEmpty &&
-            negotiations.first.status == 'accepted') {
-          _isAccepted = true;
-        }
+        final serverAccepted =
+            negotiations.isNotEmpty && negotiations.first.status == 'accepted';
+        final isAccepted = _optimisticAccepted || serverAccepted;
 
-        final allRounds = negotiations.expand((n) => n.rounds ?? []).toList();
+        final confirmedRounds = negotiations
+            .expand((n) => n.rounds ?? [])
+            .cast<NegotiationRound>()
+            .toList();
 
-        // Update local state and trigger AnimatedList inserts for new rounds
-        _updateRounds(allRounds.cast<NegotiationRound>());
+        final pendingRounds = roundCtrl.pendingRoundsFor(_negotiationId);
 
-        // If no rounds exist, show the placeholder and the input area below it
-        if (_displayedRounds.isEmpty) {
+        // Merge confirmed + pending so the "waiting" banner and the list
+        // both react the instant a message is sent — no need to wait for
+        // the network round trip.
+        final allRounds = [...confirmedRounds, ...pendingRounds]
+          ..sort(
+            (a, b) => (a.createdAt ?? DateTime(1970))
+                .compareTo(b.createdAt ?? DateTime(1970)),
+          );
+
+        WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+
+        if (allRounds.isEmpty) {
           return Column(
-            children: [_buildPlaceholder(), _buildInputAndAcceptArea()],
+            children: [
+              _buildPlaceholder(),
+              _buildInputAndAcceptArea(
+                allRounds,
+                isAccepted: isAccepted,
+                roundCtrl: roundCtrl,
+              ),
+            ],
           );
         }
 
@@ -221,24 +229,22 @@ class _NegotiationBottomSheetContentState
           children: [
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
-                ),
-                child: AnimatedList(
-                  key: _listKey,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: ListView.builder(
                   controller: _scrollController,
-                  initialItemCount: _displayedRounds.length,
-                  itemBuilder: (context, index, animation) {
-                    if (index >= _displayedRounds.length)
-                      return const SizedBox.shrink();
-                    final round = _displayedRounds[index];
-                    return _buildAnimatedRound(round, animation);
-                  },
+                  itemCount: allRounds.length,
+                  itemBuilder: (context, index) => _buildRoundBubble(
+                    allRounds[index],
+                    roundCtrl,
+                  ),
                 ),
               ),
             ),
-            _buildInputAndAcceptArea(),
+            _buildInputAndAcceptArea(
+              allRounds,
+              isAccepted: isAccepted,
+              roundCtrl: roundCtrl,
+            ),
           ],
         );
       },
@@ -247,67 +253,93 @@ class _NegotiationBottomSheetContentState
 
   // --- UI Building Widgets ---
 
-  Widget _buildAnimatedRound(
+  Widget _buildRoundBubble(
     NegotiationRound round,
-    Animation<double> animation,
+    SpNegotiationRoundCtrl roundCtrl,
   ) {
-    // NOTE: Assuming 'provider' is the current user (SP)
     final isProvider = round.senderType == "provider";
+    final isFailed = round.isFailed;
+    final isSending = round.isPending;
 
-    return SizeTransition(
-      sizeFactor: animation,
-      axisAlignment: 0.0,
-      child: Align(
-        alignment: isProvider ? Alignment.centerRight : Alignment.centerLeft,
-        child: Container(
-          padding: const EdgeInsets.all(12),
-          margin: const EdgeInsets.symmetric(vertical: 4),
-          constraints: const BoxConstraints(maxWidth: 280),
-          decoration: BoxDecoration(
-            color: isProvider ? Colors.blue.shade100 : Colors.grey.shade200,
-            borderRadius: BorderRadius.only(
-              topLeft: const Radius.circular(16),
-              topRight: const Radius.circular(16),
-              bottomLeft: Radius.circular(isProvider ? 16 : 4),
-              bottomRight: Radius.circular(isProvider ? 4 : 16),
-            ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (round.message != null && round.message!.isNotEmpty)
-                Text(round.message!, style: const TextStyle(fontSize: 15)),
-              if (round.message != null && round.message!.isNotEmpty)
-                const SizedBox(height: 8),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    Icons.monetization_on,
-                    size: 14,
-                    color: Colors.black54,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    "R${round.offeredPrice?.toStringAsFixed(2) ?? 'N/A'}",
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
+    final negotiationsCtrl = context.read<SpNegotiationsByIdEmailCtrl>();
+
+    Widget bubble = Container(
+      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      constraints: const BoxConstraints(maxWidth: 280),
+      decoration: BoxDecoration(
+        color: isFailed
+            ? Colors.red.shade50
+            : isProvider
+                ? Colors.blue.shade100
+                : Colors.grey.shade200,
+        border: isFailed ? Border.all(color: Colors.red.shade300) : null,
+        borderRadius: BorderRadius.only(
+          topLeft: const Radius.circular(16),
+          topRight: const Radius.circular(16),
+          bottomLeft: Radius.circular(isProvider ? 16 : 4),
+          bottomRight: Radius.circular(isProvider ? 4 : 16),
+        ),
+      ),
+      child: Opacity(
+        opacity: isSending ? 0.6 : 1.0,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (round.message != null && round.message!.isNotEmpty)
+              Text(round.message!, style: const TextStyle(fontSize: 15)),
+            if (round.message != null && round.message!.isNotEmpty)
+              const SizedBox(height: 8),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.monetization_on, size: 14, color: Colors.black54),
+                const SizedBox(width: 4),
+                Text(
+                  "R${round.offeredPrice?.toStringAsFixed(2) ?? 'N/A'}",
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(width: 12),
+                if (isSending)
+                  const SizedBox(
+                    width: 12,
+                    height: 12,
+                    child: CircularProgressIndicator(strokeWidth: 1.5),
+                  )
+                else if (isFailed)
+                  Icon(Icons.error_outline, size: 14, color: Colors.red.shade600)
+                else
                   Text(
                     round.createdAt != null
                         ? DateFormat('HH:mm').format(round.createdAt!)
                         : 'N/A',
                     style: const TextStyle(fontSize: 12, color: Kolors.kDark),
                   ),
+                if (isFailed) ...[
+                  const SizedBox(width: 6),
+                  Text(
+                    'Tap to retry',
+                    style: TextStyle(fontSize: 11, color: Colors.red.shade600),
+                  ),
                 ],
-              ),
-            ],
-          ),
+              ],
+            ),
+          ],
         ),
       ),
+    );
+
+    if (isFailed) {
+      bubble = GestureDetector(
+        onTap: () => _retryPendingRound(round, roundCtrl, negotiationsCtrl),
+        onLongPress: () => _discardPendingRound(round, roundCtrl),
+        child: bubble,
+      );
+    }
+
+    return Align(
+      alignment: isProvider ? Alignment.centerRight : Alignment.centerLeft,
+      child: bubble,
     );
   }
 
@@ -321,11 +353,7 @@ class _NegotiationBottomSheetContentState
             SizedBox(height: 16),
             Text(
               "Start the Negotiation",
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: Colors.grey,
-              ),
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.grey),
             ),
             SizedBox(height: 8),
             Text(
@@ -339,91 +367,67 @@ class _NegotiationBottomSheetContentState
     );
   }
 
-  /// ✅ Combined Input + Accept Button Area
-  Widget _buildInputAndAcceptArea() {
-    return Consumer2<SpNegotiationRoundCtrl, ProviderAcceptNegotiationCtrl>(
-      builder: (context, roundCtrl, acceptCtrl, _) {
+  Widget _buildInputAndAcceptArea(
+    List<NegotiationRound> rounds, {
+    required bool isAccepted,
+    required SpNegotiationRoundCtrl roundCtrl,
+  }) {
+    return Consumer<ProviderAcceptNegotiationCtrl>(
+      builder: (context, acceptCtrl, _) {
         final bottomInset = MediaQuery.of(context).viewInsets.bottom;
-        final isNegotiationAccepted = _isAccepted;
         final lastSenderIsClient =
-            _displayedRounds.isNotEmpty &&
-            _displayedRounds.last.senderType == "client";
-        final isFirstMessage = _displayedRounds.isEmpty;
+            rounds.isNotEmpty && rounds.last.senderType == "client";
+        final isFirstMessage = rounds.isEmpty;
 
-        // Logic to control visibility of input/send/accept controls:
-        final bool shouldShowControls =
-            !isNegotiationAccepted && (isFirstMessage || lastSenderIsClient);
-
-        // The Accept button requires controls to be shown AND a client offer with a price
-        final bool shouldShowAccept =
-            shouldShowControls &&
-            _displayedRounds.isNotEmpty &&
-            _displayedRounds.last.offeredPrice != null;
+        // Same logic as before — but since `rounds` now includes the
+        // optimistic pending round the instant it's added, this flips to
+        // "waiting" immediately, with no spinner delay.
+        final shouldShowControls =
+            !isAccepted && (isFirstMessage || lastSenderIsClient);
+        final shouldShowAccept = shouldShowControls &&
+            rounds.isNotEmpty &&
+            rounds.last.offeredPrice != null;
 
         if (!shouldShowControls) {
-          // If the negotiation is accepted, show the disabled info bar
-          if (isNegotiationAccepted) {
+          if (isAccepted) {
             return Container(
               padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
               color: Colors.green.shade50,
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(
-                    Icons.lock_outline,
-                    color: Colors.green.shade700,
-                    size: 20,
-                  ),
+                  Icon(Icons.lock_outline, color: Colors.green.shade700, size: 20),
                   const SizedBox(width: 8),
                   Text(
                     'Negotiation Accepted. No further changes.',
-                    style: TextStyle(
-                      color: Colors.green.shade700,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: TextStyle(color: Colors.green.shade700, fontWeight: FontWeight.w600),
                   ),
                 ],
               ),
             );
           }
 
-          
           return Container(
-            padding: EdgeInsets.only(
-              left: 16,
-              right: 16,
-              bottom: bottomInset + 8,
-              top: 8,
-            ),
+            padding: EdgeInsets.only(left: 16, right: 16, bottom: bottomInset + 8, top: 8),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(Icons.access_time, color: Kolors.kOffWhite, size: 20),
                 const SizedBox(width: 8),
                 Text(
-                  'Waiting for client reply...',
-                  style: TextStyle(
-                    color: Kolors.kOffWhite,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  'Waiting for client to respond...',
+                  style: TextStyle(color: Kolors.kOffWhite, fontWeight: FontWeight.w600),
                 ),
               ],
             ),
           );
         }
 
-        // Build the input and accept buttons
         return Padding(
-          padding: EdgeInsets.only(
-            left: 16,
-            right: 16,
-            bottom: bottomInset + 8,
-            top: 8,
-          ),
+          padding: EdgeInsets.only(left: 16, right: 16, bottom: bottomInset + 8, top: 8),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // 1. Accept Offer Button (Top row)
               if (shouldShowAccept)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 8),
@@ -434,176 +438,77 @@ class _NegotiationBottomSheetContentState
                         minimumSize: const Size.fromHeight(48),
                         backgroundColor: Colors.green.shade600,
                         foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         elevation: 3,
                       ),
-                     onPressed: acceptCtrl.isLoading
-    ? null
-    : () async {
-        if (_negotiationId == null || _isAccepted) return;
-
-        try {
-          setState(() => _isAccepted = true);
-
-          await acceptCtrl.acceptNegotiation(_negotiationId!);
-
-          if (!mounted) return;
-
-          // 1️⃣ Show success message
-          final flushbar = Flushbar(
-            message: 'Negotiation accepted!',
-            duration: const Duration(milliseconds: 1500),
-            margin: const EdgeInsets.all(8),
-            borderRadius: BorderRadius.circular(12),
-            backgroundColor: Colors.green.shade700,
-            flushbarPosition: FlushbarPosition.TOP,
-          );
-          await flushbar.show(context);
-
-          if (!mounted) return;
-
-          // 2️⃣ Go HOME (switch tab instead of popping)
-          context.read<TabIndexNotifier>().setIndex(0);
-
-          // 3️⃣ Optional: clear stacked routes if this screen was pushed
-          Navigator.of(context, rootNavigator: true)
-              .popUntil((route) => route.isFirst);
-
-        } catch (e) {
-          setState(() => _isAccepted = false);
-
-          if (kDebugMode) {
-            print('❌ Accept failed: $e');
-          }
-
-          showTopNotification(
-            context,
-            'Failed to accept negotiation.',
-            isError: true,
-          );
-        }
-      },
-
-                      child: acceptCtrl.isLoading
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
-                          : Text(
-                              'Accept R${_displayedRounds.last.offeredPrice?.toStringAsFixed(2) ?? '?'}',
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
+                      // No isLoading gate here anymore — optimistic accept
+                      // happens instantly, so there's nothing to disable for.
+                      onPressed: () => _handleAccept(acceptCtrl, rounds),
+                      child: Text(
+                        'Accept R${rounds.last.offeredPrice?.toStringAsFixed(2) ?? '?'}',
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
                     ),
                   ),
                 ),
-
-              // 2. Message + Price Input Row
               Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  // Price input
-                 SizedBox(
-  width: 90,
-  child: TextField(
-    controller: _priceController,
-    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-    style: const TextStyle(
-      fontSize: 14,
-      fontWeight: FontWeight.w600,
-      color: Kolors.kOffWhite,
-    ),
-    decoration: InputDecoration(
-      hintText: 'Price',
-      labelText: 'R',
-
-      hintStyle: const TextStyle(   // hint color
-        color: Colors.white,
-      ),
-
-      labelStyle: const TextStyle(  // "R" color
-        color: Colors.white,
-      ),
-
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: Colors.grey.shade300),
-      ),
-
-      contentPadding: const EdgeInsets.symmetric(
-        horizontal: 10,
-        vertical: 14,
-      ),
-    ),
-  ),
-),
+                  SizedBox(
+                    width: 90,
+                    child: TextField(
+                      controller: _priceController,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Kolors.kOffWhite),
+                      decoration: InputDecoration(
+                        hintText: 'Price',
+                        labelText: 'R',
+                        hintStyle: const TextStyle(color: Colors.white),
+                        labelStyle: const TextStyle(color: Colors.white),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: Colors.grey.shade300),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 14),
+                      ),
+                    ),
+                  ),
                   const SizedBox(width: 8),
-
-                  // Message input
                   Expanded(
-  child: TextField(
-    controller: _messageController,
-    focusNode: _messageFocusNode,
-    minLines: 1,
-    maxLines: 4,
-    style: const TextStyle(color: Colors.white), // optional: typed text color
-    decoration: InputDecoration(
-      hintText: 'Message or optional notes...',
-      hintStyle: const TextStyle(
-        color: Colors.white,
-      ),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: Colors.grey.shade300),
-      ),
-      contentPadding: const EdgeInsets.symmetric(
-        horizontal: 12,
-        vertical: 14,
-      ),
-    ),
-  ),
-),
+                    child: TextField(
+                      controller: _messageController,
+                      focusNode: _messageFocusNode,
+                      minLines: 1,
+                      maxLines: 4,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: InputDecoration(
+                        hintText: 'Message or optional notes...',
+                        hintStyle: const TextStyle(color: Colors.white),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: Colors.grey.shade300),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                      ),
+                    ),
+                  ),
                   const SizedBox(width: 8),
-
-                  // Send button
                   Container(
-  decoration: BoxDecoration(
-    color: roundCtrl.isLoading ? Colors.grey : Kolors.kPrimary,
-    borderRadius: BorderRadius.circular(12),
-  ),
-  child: IconButton(
-    icon: roundCtrl.isLoading
-        ? const SizedBox(
-            width: 20,
-            height: 20,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              color: Colors.white,
-            ),
-          )
-        : const Icon(Icons.send, color: Colors.white),
-    onPressed: roundCtrl.isLoading
-        ? null
-        : () async {
-            final negotiationsCtrl =
-                Provider.of<SpNegotiationsByIdEmailCtrl>(
-              context,
-              listen: false,
-            );
-
-            await _sendMessage(roundCtrl, negotiationsCtrl);
-          },
-  ),
-)
-
+                    decoration: BoxDecoration(
+                      color: Kolors.kPrimary,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: IconButton(
+                      // No spinner / disabled state — send is instant now.
+                      icon: const Icon(Icons.send, color: Colors.white),
+                      onPressed: () async {
+                        final roundCtrl = context.read<SpNegotiationRoundCtrl>();
+                        final negotiationsCtrl =
+                            context.read<SpNegotiationsByIdEmailCtrl>();
+                        await _sendMessage(roundCtrl, negotiationsCtrl);
+                      },
+                    ),
+                  ),
                 ],
               ),
             ],
@@ -611,5 +516,51 @@ class _NegotiationBottomSheetContentState
         );
       },
     );
+  }
+
+  Future<void> _handleAccept(
+    ProviderAcceptNegotiationCtrl acceptCtrl,
+    List<NegotiationRound> rounds,
+  ) async {
+    if (_negotiationId == null || _optimisticAccepted) return;
+
+    // 1. Flip to "accepted" UI immediately — banner shows with zero delay.
+    setState(() => _optimisticAccepted = true);
+
+    final ok = await acceptCtrl.acceptNegotiation(_negotiationId!);
+
+    if (!mounted) return;
+
+    if (!ok) {
+      // 2a. Revert on failure.
+      setState(() => _optimisticAccepted = false);
+      showTopNotification(context, 'Failed to accept negotiation.', isError: true);
+      return;
+    }
+
+    // 2b. Confirmed — sync canonical state, then close out.
+    await context.read<SpNegotiationsByIdEmailCtrl>()
+        .refreshNegotiations(orderId: widget.orderId);
+
+    if (!mounted) return;
+
+    final flushbar = Flushbar(
+      message: 'Negotiation accepted!',
+      duration: const Duration(milliseconds: 1500),
+      margin: const EdgeInsets.all(8),
+      borderRadius: BorderRadius.circular(12),
+      backgroundColor: Colors.green.shade700,
+      flushbarPosition: FlushbarPosition.TOP,
+    );
+    await flushbar.show(context);
+
+    if (!mounted) return;
+
+    Navigator.of(context).pop();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      context.read<TabIndexNotifier>().setIndex(0);
+    });
   }
 }

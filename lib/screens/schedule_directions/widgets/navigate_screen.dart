@@ -1,7 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_application_2/common/controller/bookings/shipment_controller.dart';
+  
+import 'package:flutter_application_2/common/services/session_socket_service.dart';
 import 'package:flutter_application_2/screens/scan_session_qr_code/views/session_initiation_qr_screen.dart';
 import 'package:flutter_application_2/screens/schedule_directions/widgets/geo_coordinates_to_position.dart';
 import 'package:flutter_application_2/common/services/shipment_stauts_api.dart';
@@ -10,7 +11,7 @@ import 'package:flutter_application_2/screens/scheduled_services_details/widgets
 import 'package:here_sdk/core.dart';
 import 'package:here_sdk/mapview.dart';
 import 'package:here_sdk/routing.dart' as here;
-import 'package:provider/provider.dart';
+
 
 import 'here_map_controller.dart';
 
@@ -20,14 +21,16 @@ class NavigationScreen extends StatefulWidget {
   final int shipmentId;
   final double? destinationLat;
   final double? destinationLng;
-  final String? providerEmail;
+  final SessionSocketService sessionSocket;
+
 
   const NavigationScreen({
     super.key,
     required this.route,
     required this.travelMode,
     required this.shipmentId,
-    required this.providerEmail,
+    required this.sessionSocket,
+   
     this.destinationLat,
     this.destinationLng,
   });
@@ -88,6 +91,7 @@ class _NavigationScreenState extends State<NavigationScreen> {
   // -------------------- MAP SETUP --------------------
   void _onMapCreated(HereMapController controller) async {
     _helper = HereMapControllerHelper(
+      sessionSocket: widget.sessionSocket,
       controller,
       shipmentId: widget.shipmentId,
     );
@@ -228,7 +232,7 @@ void _onNavigationUpdate(
     widget.shipmentId,
     "arrived",
   );
-
+ _helper?.stopNavigationTracking();
   Navigator.pop(context); // close loader
 
   if (!success) {
@@ -246,7 +250,7 @@ void _onNavigationUpdate(
     context,
     MaterialPageRoute(
       builder: (_) =>
-          SessionInitiationQrScreen(shipmentId: widget.shipmentId, providerEmail: widget.providerEmail ?? ''),
+          SessionInitiationQrScreen(shipmentId: widget.shipmentId, sessionSocket: widget.sessionSocket,),
     ),
   );
 }
@@ -357,6 +361,7 @@ Widget build(BuildContext context) {
   @override
   void dispose() {
     _helper?.dispose();
+    _helper?.stopNavigationTracking();
     super.dispose();
   }
 }

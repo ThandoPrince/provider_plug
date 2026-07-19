@@ -16,13 +16,13 @@ class SpProfileCtrl with ChangeNotifier {
   List<ServiceProviderModel>? get spProfiles => _spProfiles;
 
   
-  Future<void> fetchSPByEmail(String email) async {
+  Future<void> fetchSPByEmail() async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
-      _spProfile = await SpProfileByEmailApi.fetchSpProfileByEmail(email);
+      _spProfile = await SpProfileByEmailApi.fetchSpProfileByEmail();
     } catch (e) {
       _errorMessage = e.toString();
       _spProfile = null;

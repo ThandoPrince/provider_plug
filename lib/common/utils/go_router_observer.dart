@@ -17,7 +17,7 @@ class ShipmentRefreshObserver extends NavigatorObserver {
     if (previousRoute?.settings.name == '/scheduled_services') {
       // Refresh the ShipmentController
       final shipmentCtrl = Provider.of<ShipmentController>(context, listen: false);
-      shipmentCtrl.fetchShipments(providerEmail);
+      shipmentCtrl.fetchShipments();
     }
   }
 }
