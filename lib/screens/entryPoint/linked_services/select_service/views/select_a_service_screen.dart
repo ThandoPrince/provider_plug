@@ -104,7 +104,7 @@ class _SelectAServiceScreenState extends State<SelectAServiceScreen> {
         leading: IconButton(
           icon: const Icon(
             Icons.arrow_back_ios_new,
-            color: Kolors.kDark,
+            color: Kolors.kOffWhite,
             size: 20,
           ),
           onPressed: () => context.pop(),
