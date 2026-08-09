@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_application_2/common/controller/bookings/cancel_shipment_controller.dart';
+import 'package:flutter_application_2/common/controller/bookings/shipment_controller.dart';
 import 'package:flutter_application_2/common/models/models/order_service_models/shipment_model.dart';
 import 'package:flutter_application_2/common/services/session_socket_service.dart';
 import 'package:flutter_application_2/common/utils/kcolors.dart';
+import 'package:flutter_application_2/common/widgets/app_confirmation_dialog.dart';
+import 'package:flutter_application_2/common/widgets/flushbar_service.dart';
 import 'package:flutter_application_2/screens/scheduled_services_details/widgets/schedule_action_buttons.dart';
 import 'package:flutter_application_2/screens/scheduled_services_details/widgets/scheduled_address_tile.dart';
 import 'package:flutter_application_2/screens/scheduled_services_details/widgets/scheduled_notes_section.dart';
@@ -21,6 +25,8 @@ class ScheduledOrderDetails extends StatefulWidget {
 class _ScheduledOrderDetailsState extends State<ScheduledOrderDetails> {
   bool _showHeader = true;
   late final SessionSocketService _sessionSocket;
+  final CancelShipmentController _cancelController =
+      CancelShipmentController();
 
   @override
   void initState() {
@@ -94,9 +100,61 @@ void dispose() {
   super.dispose();
 }
 
+Future<void> _showCancelOrderDialog() async {
+  final confirm = await showDialog<bool>(
+  context: context,
+  barrierDismissible: false,
+  builder: (_) => const AppConfirmationDialog(
+    icon: Icons.event_busy_rounded,
+    iconColor: Colors.redAccent,
+    title: "Cancel Scheduled Order",
+    message:
+        "This will cancel the order.\n\n"
+        "This action cannot be undone.",
+    confirmText: "Cancel Order",
+    cancelText: "Keep Order",
+    confirmColor: Colors.red,
+  ),
+);
+
+
+
+
+
+  if (confirm != true) return;
+
+final success = await _cancelController.cancelShipment(
+  shipmentId: widget.shipment.shipmentId!,
+);
+
+if (!mounted) return;
+
+if (success) {
+   await context.read<ShipmentController>().fetchShipments();
+  FlushbarService.success(
+    context,
+    "Scheduled order cancelled successfully.",
+  );
+
+ 
+} else {
+  FlushbarService.error(
+    context,
+    _cancelController.errorMessage ??
+        "Unable to cancel scheduled order.",
+  );
+}
+}
+
   @override
   Widget build(BuildContext context) {
-    final shipment = widget.shipment;
+    final shipment = context
+    .watch<ShipmentController>()
+    .shipments
+    .firstWhere(
+      (s) => s.shipmentId == widget.shipment.shipmentId,
+      orElse: () => widget.shipment,
+    );
     final order = shipment.serviceOrdered;
 
     return PopScope(
@@ -125,37 +183,70 @@ void dispose() {
               children: [
                 // ✅ FIXED SAFE HEADER (never collapses system inset)
                 SafeArea(
-                  bottom: false,
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 220),
-                    height: _showHeader ? 56 : 0,
-                    curve: Curves.easeOut,
-                    child: Padding(
-                      padding:
-                          const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      child: Row(
-        children: [
-      if (_showHeader) ...[
-        BackButton(
-        color: Colors.white,
-        onPressed: _exitShipment,
-      ),
-        const SizedBox(width: 8),
-      ],
-      const Text(
-        "Order Details",
-        style: TextStyle(
-          color: Colors.white,
-          fontWeight: FontWeight.bold,
-          fontSize: 20,
-        ),
-      ),
+  bottom: false,
+  child: AnimatedContainer(
+    duration: const Duration(milliseconds: 220),
+    height: _showHeader ? 56 : 0,
+    curve: Curves.easeOut,
+    padding: const EdgeInsets.symmetric(horizontal: 16),
+    child: Row(
+      children: [
+        if (_showHeader) ...[
+          BackButton(
+            color: Colors.white,
+            onPressed: _exitShipment,
+          ),
+          const SizedBox(width: 8),
         ],
-      ),
-      
-                    ),
+
+        const Expanded(
+          child: Text(
+            "Order Details",
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 20,
+              height: 1,
+            ),
+          ),
+        ),
+
+        PopupMenuButton<String>(
+          icon: const Icon(
+            Icons.more_vert,
+            color: Colors.white,
+          ),
+          color: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          onSelected: (value) async {
+            switch (value) {
+              case 'cancel':
+                _showCancelOrderDialog();
+                break;
+            }
+          },
+          itemBuilder: (context) => const [
+            PopupMenuItem(
+              value: 'cancel',
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.cancel_outlined,
+                    color: Colors.red,
                   ),
-                ),
+                  SizedBox(width: 12),
+                  Text("Cancel Order"),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ],
+    ),
+  ),
+),
       
                 // ✅ CONTENT
                 Expanded(

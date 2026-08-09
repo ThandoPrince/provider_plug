@@ -14,6 +14,9 @@ class ProviderActiveController extends ChangeNotifier {
   bool _isActive = true;
   bool get isActive => _isActive;
 
+  bool _isInitialized = false;
+  bool get isInitialized => _isInitialized;
+
   bool _isLoading = false;
   bool get isLoading => _isLoading;
 
@@ -21,7 +24,26 @@ class ProviderActiveController extends ChangeNotifier {
   String? get message => _message;
 
   void setInitialStatus(bool value) {
+    if (_isInitialized) return;
+
     _isActive = value;
+    _isInitialized = true;
+    notifyListeners();
+  }
+
+  /// Allows forcing a new initial status (e.g. after login/logout).
+  void resetInitialStatus(bool value) {
+    _isActive = value;
+    _isInitialized = true;
+    notifyListeners();
+  }
+
+  /// Clears the controller state.
+  void reset() {
+    _isActive = true;
+    _isInitialized = false;
+    _isLoading = false;
+    _message = null;
     notifyListeners();
   }
 

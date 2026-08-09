@@ -1,13 +1,14 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_application_2/common/controller/auth/get_provider_for_service_controller.dart';
-import 'package:flutter_application_2/common/controller/registration/fetch_auth_controller.dart';
+import 'package:flutter_application_2/common/widgets/flushbar_service.dart';
 import 'package:flutter_application_2/screens/onboarding/Widgets/back_exit_widget.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_application_2/common/controller/auth/sp_login_controller.dart';
 import 'package:flutter_application_2/common/utils/kcolors.dart';
 import 'package:flutter_application_2/screens/auth/widgets/login_overlay.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class SPLoginScreen extends StatefulWidget {
   const SPLoginScreen({super.key});
@@ -43,12 +44,13 @@ class _SPLoginScreenState extends State<SPLoginScreen> {
   Future<void> _goToCostStep(String identifier) async {
     final providerServiceController = context.read<GetProviderForServiceController>();
 
-    final fetched = await providerServiceController.fetchProviderServices(identifier);
+    final fetched = await providerServiceController.fetchProviderServices();
 
     if (!mounted) return;
 
     if (!fetched) {
-      _showErrorSnackBar(
+      FlushbarService.error(
+        context,
         providerServiceController.error ??
             'Failed to fetch provider services.',
       );
@@ -63,80 +65,120 @@ class _SPLoginScreenState extends State<SPLoginScreen> {
     final serviceId = targetService?.serviceId;
 
     if (serviceId == null) {
-      _showErrorSnackBar('No valid service found for cost setup.');
+      FlushbarService.error(
+        context,
+        'No valid service found for cost setup.',
+      );
       return;
     }
 
-    context.go('/providers/$identifier/services/$serviceId/cost');
+    context.go('/providers/services/$serviceId/cost');
   }
 
-  Future<void> _handleLogin(SPLoginController controller) async {
-    if (!_formKey.currentState!.validate()) return;
+  Future<void> _openWebsite() async {
+  final uri = Uri.parse('https://plugwebsite.up.railway.app/');
 
-    final rawInput = _identifierController.text.trim();
-    // Only lowercase email-style input — lowercasing a phone number is a
-    // no-op for digits but this keeps intent explicit and avoids mangling
-    // any future alphanumeric identifier formats.
-    final identifier = rawInput.contains('@') ? rawInput.toLowerCase() : rawInput;
-
-    final success = await controller.login(
-      email: identifier,
-      password: _passwordController.text,
+  try {
+    final launched = await launchUrl(
+      uri,
+      mode: LaunchMode.externalApplication,
     );
 
-    if (!mounted) return;
-
-    if (!success) {
-      if (controller.errorMessage != null) {
-        _showErrorSnackBar(controller.errorMessage!);
-      }
-      return;
+    if (!launched && mounted) {
+      FlushbarService.error(
+        context,
+        'Unable to open the website.',
+      );
     }
-
-    if (!mounted) return;
-
-    SuccessOverlay.show(
-      context,
-      message: "Welcome back! We are preparing your workspace.",
-    );
-
-    await Future.delayed(const Duration(seconds: 2));
-
-    if (!mounted) return;
+  } catch (e) {
     if (kDebugMode) {
-      print(controller.user?.data?.isProfileCompleted);
+      debugPrint('❌ Failed to open website: $e');
     }
 
-    // NOTE: downstream routes (below) are built with `identifier` in the
-    // path, e.g. '/sp_patch/$identifier'. If those routes/screens expect
-    // the user's email specifically (not whatever identifier they logged
-    // in with), the backend response should return the canonical email
-    // so we route with that instead — check controller.user?.data for it.
-    switch (controller.user?.data?.isProfileCompleted) {
-      case 'in-details':
-        context.go('/sp_patch/$identifier');
-        break;
+    if (!mounted) return;
 
-      case 'in-address':
-        context.go('/sp_address_document/$identifier');
-        break;
-
-      case 'in-services':
-        context.go('/sp_select_service/$identifier');
-        break;
-
-      case 'in-cost':
-        await _goToCostStep(identifier);
-        break;
-
-      case 'completed':
-        context.go('/entrypoint');
-        break;
-
-      default:
-        _showErrorSnackBar("Unknown profile status.");
-    }
+    FlushbarService.error(
+      context,
+      'Unable to open the website.',
+    );
   }
+}
+
+ 
+Future<void> _handleLogin(SPLoginController controller) async {
+  if (!_formKey.currentState!.validate()) return;
+
+  final rawInput = _identifierController.text.trim();
+
+  final identifier =
+      rawInput.contains('@') ? rawInput.toLowerCase() : rawInput;
+
+  final success = await controller.login(
+    email: identifier,
+    password: _passwordController.text,
+  );
+
+  if (!mounted) return;
+
+  if (!success) {
+  FlushbarService.error(
+    context,
+    controller.errorMessage ??
+        "Login failed. Please try again.",
+  );
+
+  return;
+}
+
+  if (!mounted) return;
+
+  SuccessOverlay.show(
+    context,
+    message: "Welcome back! We are preparing your workspace.",
+  );
+
+  await Future.delayed(
+    const Duration(seconds: 2),
+  );
+
+  if (!mounted) return;
+
+  if (kDebugMode) {
+    print(
+      controller.user?.data?.isProfileCompleted,
+    );
+  }
+
+  switch (controller.user?.data?.isProfileCompleted) {
+    case 'in-details':
+      context.go('/sp_patch');
+      break;
+
+    case 'in-address':
+      context.go('/sp_address_document');
+      break;
+
+    case 'in-services':
+      context.go('/sp_select_service');
+      break;
+
+    case 'in-cost':
+      await _goToCostStep(identifier);
+      break;
+
+    case 'completed':
+      context.go('/entrypoint');
+      break;
+
+    default:
+      FlushbarService.error(
+        context,
+        "Unknown profile status.",
+      );
+  }
+}
+
+
 
   @override
   Widget build(BuildContext context) {
@@ -153,6 +195,7 @@ class _SPLoginScreenState extends State<SPLoginScreen> {
               colors: [Kolors.kPrimary, Color(0xFF1A1A1A)],
             ),
           ),
+
           child: SafeArea(
             child: Consumer<SPLoginController>(
               builder: (context, controller, _) {
@@ -170,15 +213,62 @@ class _SPLoginScreenState extends State<SPLoginScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const SizedBox(height: 40),
-                                const Icon(
-                                  Icons.shield_rounded,
-                                  color: Colors.white,
-                                  size: 48,
-                                ),
-                                const SizedBox(height: 24),
-                                _buildHeader(),
-                                const SizedBox(height: 48),
+                               
+const SizedBox(height: 20),
+
+Row(
+  crossAxisAlignment: CrossAxisAlignment.center,
+  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  children: [
+    // Plug icon
+    Container(
+      width: 56,
+      height: 56,
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Image.asset(
+        'assets/icons/plug_provider_foreground.png',
+        fit: BoxFit.contain,
+      ),
+    ),
+
+    // Help / Contact Us
+    TextButton.icon(
+      onPressed: _openWebsite,
+      style: TextButton.styleFrom(
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(
+          horizontal: 8,
+          vertical: 6,
+        ),
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+      icon: const Icon(
+        Icons.help_outline_rounded,
+        size: 18,
+      ),
+      label: const Text(
+        "Help",
+        style: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    ),
+  ],
+),
+
+const SizedBox(height: 24),
+
+_buildHeader(),
+
+const SizedBox(height: 48),
+
+
       
                                 _buildLabel("EMAIL OR MOBILE NUMBER"),
                                 _buildInputContainer(
@@ -218,7 +308,7 @@ class _SPLoginScreenState extends State<SPLoginScreen> {
                                     style:
                                         const TextStyle(color: Kolors.kDark),
                                     decoration: _inputDecoration(
-                                      "••••••••",
+                                      "••••••",
                                       Icons.lock_outline_rounded,
                                     ).copyWith(
                                       suffixIcon: IconButton(
@@ -254,13 +344,14 @@ class _SPLoginScreenState extends State<SPLoginScreen> {
                                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                                     ),
                                     child: const Text(
-                                      'Forgot Password?',
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.w600,
-                                        decoration: TextDecoration.underline,
-                                      ),
-                                    ),
+  'Forgot Password?',
+  style: TextStyle(
+    color: Colors.white,
+    fontWeight: FontWeight.bold,
+    decoration: TextDecoration.underline,
+    decorationColor: Colors.white,
+  ),
+),
                                   ),
                                 ),
 
@@ -269,6 +360,7 @@ class _SPLoginScreenState extends State<SPLoginScreen> {
       
                                 _buildLoginButton(controller),
                                 const SizedBox(height: 24),
+                                
                                 _buildRegisterLink(),
                                 const SizedBox(height: 30),
                               ],
@@ -347,6 +439,7 @@ class _SPLoginScreenState extends State<SPLoginScreen> {
                     letterSpacing: 0.5,
                   ),
                 ),
+                
         ),
       ),
     );
@@ -421,21 +514,5 @@ class _SPLoginScreenState extends State<SPLoginScreen> {
     );
   }
 
-  void _showErrorSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          message,
-          textAlign: TextAlign.center,
-          style: const TextStyle(fontWeight: FontWeight.w600),
-        ),
-        backgroundColor: Colors.redAccent,
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 4),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-      ),
-    );
-  }
+ 
 }

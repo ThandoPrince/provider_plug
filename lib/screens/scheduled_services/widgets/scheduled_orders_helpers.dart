@@ -11,16 +11,19 @@ Color getStatusColor(String? status) {
   switch (status?.toLowerCase()) {
     case "pending":
       return Colors.orange.shade700;
+
+    case "in_transit":
+      return Colors.blue.shade700;
+
+    case "arrived":
+      return Colors.teal.shade600;
+
+    case "in_session":
+      return Colors.indigo.shade700;
+
     case "delivered":
       return Colors.green.shade700;
-    case "cancelled":
-      return Colors.red.shade700;
-    case "in_transit":
-      return Kolors.kPrimary;
-    case "arrived":
-      return Colors.purple.shade700;
-    case "in_session":
-      return Colors.blue.shade700;
+
     default:
       return Colors.blueGrey;
   }

@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_application_2/common/controller/auth/auth_session_controller.dart';
+
 import 'package:flutter_application_2/common/utils/kcolors.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_application_2/common/controller/bookings/booking_by_orderID_controller.dart';
-import 'package:flutter_application_2/common/controller/bookings/sp_negotiations_by_id_email_ctrl.dart';
+
 import 'package:flutter_application_2/common/models/models/order_service_models/order_service_model.dart';
 import 'package:flutter_application_2/common/widgets/negotiation_bottom_sheet.dart';
 import 'package:flutter_application_2/screens/view_requested_service_info/widgets/detail_widgets.dart';
@@ -116,6 +116,11 @@ class BookingDetailContent extends StatelessWidget {
               DetailRow(
                 label: "Service Category",
                 value: booking.serviceRequired?.serviceName ?? "N/A",
+                color: secondaryText,
+              ),
+              DetailRow(
+                label: "Order ID",
+                value: booking.orderId.toString(),
                 color: secondaryText,
               ),
               const Padding(

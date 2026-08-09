@@ -1,7 +1,10 @@
 import 'package:flutter/foundation.dart';
-import 'package:here_sdk/routing.dart' as here;
+import 'package:flutter_application_2/screens/schedule_directions/widgets/directions_service.dart';
+import 'package:flutter_application_2/screens/schedule_directions/widgets/here_map_controller.dart';
+import 'package:flutter_application_2/screens/schedule_directions/widgets/here_route_conversion.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 
-import 'here_map_controller.dart';
+
 
 typedef RouteUpdateCallback = void Function(
   double? distanceKm,
@@ -9,38 +12,41 @@ typedef RouteUpdateCallback = void Function(
 );
 
 class RouteService {
-  final HereMapControllerHelper mapHelper;
+  final GoogleMapControllerHelper mapHelper;
+  final DirectionsService directionsService;
 
-  here.Route? _activeRoute;
+  AppRoute? _activeRoute;
   bool _isRecalculating = false;
 
-  RouteService(this.mapHelper);
+  RouteService(this.mapHelper, {DirectionsService? directionsService})
+      : directionsService = directionsService ?? DirectionsService();
 
-  // ------------------------------------------------------------
-  // GETTERS
-  // ------------------------------------------------------------
-  here.Route? get activeRoute => _activeRoute;
+  AppRoute? get activeRoute => _activeRoute;
   bool get hasRoute => _activeRoute != null;
 
   // ------------------------------------------------------------
   // INITIAL ROUTE
   // ------------------------------------------------------------
   Future<void> calculateAndShowRoute({
-    required List<here.Waypoint> waypoints,
+    required LatLng origin,
+    required LatLng destination,
     required TravelMode mode,
     required RouteUpdateCallback onRouteUpdated,
   }) async {
     try {
-      final routes =
-          await mapHelper.calculateRouteAsync(waypoints, mode);
+      final route = await directionsService.getRoute(
+        origin: origin,
+        destination: destination,
+        mode: mode,
+      );
 
-      if (routes.isEmpty) {
-        debugPrint("❌ No routes returned");
+      if (route == null) {
+        debugPrint("❌ No route returned");
         onRouteUpdated(null, null);
         return;
       }
 
-      _setActiveRoute(routes.first, onRouteUpdated);
+      _setActiveRoute(route, onRouteUpdated);
     } catch (e) {
       debugPrint("❌ Routing exception: $e");
       onRouteUpdated(null, null);
@@ -51,7 +57,7 @@ class RouteService {
   // AUTO RE-ROUTING (OFF-ROUTE ONLY)
   // ------------------------------------------------------------
   void startAutoUpdate({
-    required List<here.Waypoint> originalWaypoints,
+    required LatLng destination,
     required TravelMode mode,
     required RouteUpdateCallback onRouteUpdated,
   }) {
@@ -59,24 +65,17 @@ class RouteService {
 
     mapHelper.startNavigationTracking(
       route: _activeRoute!,
-      mode: mode,
-      onUpdate: (geo, bearing, _) async {
-        if (_isRecalculating || _activeRoute == null) return;
+      onUpdate: (geo, bearing, route) async {
+        if (_isRecalculating) return;
 
-        final offRoute =
-            mapHelper.isOffRoute(geo, _activeRoute!);
-
+        final offRoute = mapHelper.isOffRoute(geo, route.polylinePoints);
         if (!offRoute) return;
 
         _isRecalculating = true;
 
-        final updatedWaypoints = [
-          here.Waypoint(geo),
-          originalWaypoints.last,
-        ];
-
         await calculateAndShowRoute(
-          waypoints: updatedWaypoints,
+          origin: geo,
+          destination: destination,
           mode: mode,
           onRouteUpdated: onRouteUpdated,
         );
@@ -89,19 +88,15 @@ class RouteService {
   // ------------------------------------------------------------
   // INTERNAL
   // ------------------------------------------------------------
-  void _setActiveRoute(
-    here.Route route,
-    RouteUpdateCallback onRouteUpdated,
-  ) {
+  void _setActiveRoute(AppRoute route, RouteUpdateCallback onRouteUpdated) {
     _activeRoute = route;
 
-    mapHelper
-      ..drawRoute(route)
-      ..zoomToRoute(route);
+    mapHelper.drawRoute(route);
+    mapHelper.zoomToBounds(route.bounds);
 
     onRouteUpdated(
-      route.lengthInMeters / 1000,
-      (route.duration.inSeconds / 60).round(),
+      route.distanceMeters / 1000,
+      (route.durationSeconds / 60).round(),
     );
   }
 

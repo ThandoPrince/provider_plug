@@ -27,49 +27,72 @@ class SPLoginController extends ChangeNotifier {
   StreamSubscription<String>? _firebaseTokenRefreshSubscription;
 
   Future<bool> login({
-    required String email,
-    required String password,
-  }) async {
-    _isLoading = true;
-    _errorMessage = null;
-    notifyListeners();
+  required String email,
+  required String password,
+}) async {
+  _isLoading = true;
+  _errorMessage = null;
 
-    try {
-      final normalizedEmail = email.trim().toLowerCase();
+  notifyListeners();
 
-      final result = await _api.login(
-        email: normalizedEmail,
-        password: password,
-      );
+  try {
+    final normalizedEmail =
+        email.trim().toLowerCase();
 
-      if (result != null && result.data != null) {
-        _user = result;
-        
-        final String freshAccessToken = result.data!.accessToken;
+    final result = await _api.login(
+      email: normalizedEmail,
+      password: password,
+    );
 
-        await AuthSessionController.instance.setSession(
-          id: result.data!.id,
-        
-          accessToken: freshAccessToken,
-          refreshToken: result.data!.refreshToken,
-        );
+    if (result["success"] != true) {
+      _errorMessage =
+          result["error"]?.toString() ??
+          "Login failed. Please try again.";
 
-        // Explicitly cascade the working access token to prevent 401 log events
-        await _fetchAndSendPushToken(normalizedEmail, freshAccessToken);
-
-        return true;
-      } else {
-        _errorMessage = "Login failed";
-        return false;
-      }
-    } catch (e) {
-      _errorMessage = "An unexpected error occurred. Please try again.";
       return false;
-    } finally {
-      _isLoading = false;
-      notifyListeners();
     }
+
+    final ProviderLoginResponseModel? user =
+        result["data"];
+
+    if (user == null || user.data == null) {
+      _errorMessage =
+          "Invalid response received from the server.";
+
+      return false;
+    }
+
+    _user = user;
+
+    final String freshAccessToken =
+        user.data!.accessToken;
+
+    await AuthSessionController.instance.setSession(
+      id: user.data!.id,
+      accessToken: freshAccessToken,
+      refreshToken: user.data!.refreshToken,
+    );
+
+    await _fetchAndSendPushToken(
+      normalizedEmail,
+      freshAccessToken,
+    );
+
+    return true;
+  } catch (e) {
+    if (kDebugMode) {
+      print("Login controller error: $e");
+    }
+
+    _errorMessage =
+        "An unexpected error occurred. Please try again.";
+
+    return false;
+  } finally {
+    _isLoading = false;
+    notifyListeners();
   }
+}
 
   Future<void> _fetchAndSendPushToken(String email, String dynamicAuthToken) async {
     if (!Platform.isAndroid) return;

@@ -7,11 +7,13 @@ class ProviderQualificationController extends ChangeNotifier {
   bool _isLoading = false;
   String? _errorMessage;
   Map<String, dynamic>? _response;
+  int? _qualificationId;
 
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   bool get hasError => _errorMessage != null;
   Map<String, dynamic>? get response => _response;
+  int? get qualificationId => _qualificationId;
 
   Future<bool> uploadQualification({
     required int providerServiceId,
@@ -25,6 +27,7 @@ class ProviderQualificationController extends ChangeNotifier {
     _isLoading = true;
     _errorMessage = null;
     _response = null;
+    _qualificationId = null;
 
     notifyListeners();
 
@@ -39,7 +42,12 @@ class ProviderQualificationController extends ChangeNotifier {
         expiryDate: expiryDate,
       );
 
-      return _response?["success"] == true;
+      if (_response?["success"] == true) {
+        _qualificationId = _response?["data"]?["id"] as int?;
+        return true;
+      }
+
+      return false;
     } catch (e) {
       _errorMessage = e.toString().replaceFirst("Exception: ", "");
       return false;
@@ -51,6 +59,7 @@ class ProviderQualificationController extends ChangeNotifier {
 
   void clearError() {
     _errorMessage = null;
+    _qualificationId = null;
     notifyListeners();
   }
 }

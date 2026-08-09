@@ -19,119 +19,113 @@ class SuccessOverlay {
               horizontal: 24,
               vertical: 20,
             ),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: const BorderRadius.only(
+            decoration: const BoxDecoration(
+              color: Kolors.kDark,
+              borderRadius: BorderRadius.only(
                 topLeft: Radius.circular(35),
                 topRight: Radius.circular(35),
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.2),
-                  blurRadius: 20,
-                  spreadRadius: 5,
-                ),
-              ],
             ),
-            child: SingleChildScrollView(
-              child: Column(
-                children: [
-                  // Handle Bar
-                  Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade300,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Handle Bar
+                Container(
+                  width: 45,
+                  height: 5,
+                  decoration: BoxDecoration(
+                    color: Colors.white24,
+                    borderRadius: BorderRadius.circular(100),
                   ),
+                ),
 
-                  const SizedBox(height: 30),
+                const SizedBox(height: 30),
 
-                  // Animated Checkmark
-                  TweenAnimationBuilder<double>(
-                    duration: const Duration(milliseconds: 800),
-                    curve: Curves.elasticOut,
-                    tween: Tween(begin: 0, end: 1),
-                    builder: (context, value, child) {
-                      return Transform.scale(
-                        scale: value,
-                        child: Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: Colors.green.withOpacity(0.1),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            Icons.check_circle_rounded,
-                            color: Colors.green.shade600,
-                            size: 90,
+                // Animated Checkmark
+                TweenAnimationBuilder<double>(
+                  duration: const Duration(milliseconds: 800),
+                  curve: Curves.elasticOut,
+                  tween: Tween(begin: 0, end: 1),
+                  builder: (context, value, child) {
+                    return Transform.scale(
+                      scale: value,
+                      child: Container(
+                        padding: const EdgeInsets.all(18),
+                        decoration: BoxDecoration(
+                          color: Colors.green.withOpacity(0.12),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Colors.green.withOpacity(0.25),
                           ),
                         ),
-                      );
-                    },
+                        child: Icon(
+                          Icons.check_circle_rounded,
+                          color: Colors.green.shade400,
+                          size: 90,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+
+                const SizedBox(height: 24),
+
+                const Text(
+                  "Access Granted!",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.w900,
+                    color: Colors.white,
+                    letterSpacing: -0.5,
                   ),
+                ),
 
-                  const SizedBox(height: 24),
+                const SizedBox(height: 12),
 
-                  const Text(
-                    "Access Granted!",
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Text(
+                    message,
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.w900,
-                      color: Kolors.kDark,
-                      letterSpacing: -0.5,
+                      fontSize: 16,
+                      color: Colors.white.withOpacity(0.75),
+                      height: 1.5,
                     ),
                   ),
+                ),
 
-                  const SizedBox(height: 12),
+                const SizedBox(height: 32),
 
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: Text(
-                      message,
-                      textAlign: TextAlign.center,
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          Kolors.kPrimary,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    const Text(
+                      "Redirecting...",
                       style: TextStyle(
-                        fontSize: 16,
-                        color: Colors.grey.shade600,
-                        height: 1.4,
-                        fontWeight: FontWeight.w400,
+                        color: Kolors.kPrimary,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                        letterSpacing: 1.1,
                       ),
                     ),
-                  ),
+                  ],
+                ),
 
-                  const SizedBox(height: 32),
-
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            Kolors.kPrimary,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Text(
-                        "Redirecting...",
-                        style: TextStyle(
-                          color: Kolors.kPrimary,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
-                          letterSpacing: 1.1,
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 30),
-                ],
-              ),
+                const SizedBox(height: 30),
+              ],
             ),
           ),
         ),

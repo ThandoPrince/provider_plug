@@ -14,7 +14,6 @@ class GetProviderForServiceController extends ChangeNotifier {
 
   GetProviderForServiceController._internal();
 
-  final GetProviderForServiceApi _api = GetProviderForServiceApi();
 
   List<ProviderServiceModel> _services = [];
   List<ProviderServiceModel> get services => _services;
@@ -28,13 +27,13 @@ class GetProviderForServiceController extends ChangeNotifier {
   int _count = 0;
   int get count => _count;
 
-  Future<bool> fetchProviderServices(String email) async {
+  Future<bool> fetchProviderServices() async {
     _isLoading = true;
     _error = null;
     notifyListeners();
 
     try {
-      final result = await GetProviderForServiceApi.fetchProviderServices(email);
+      final result = await GetProviderForServiceApi.fetchProviderServices();
 
       if (result['success'] == true) {
         _services = (result['data'] as List<ProviderServiceModel>? ?? []);

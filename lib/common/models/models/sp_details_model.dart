@@ -2,6 +2,7 @@ import 'package:flutter_application_2/common/models/models/client_models/address
 import 'package:flutter_application_2/common/models/models/services_model.dart';
 import 'package:flutter_application_2/common/models/models/sp_address_model.dart';
 import 'package:flutter_application_2/common/models/models/sp_profile_model.dart' show SPProfileModel;
+import 'package:flutter_application_2/common/models/my_sp_live_location_model.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class ServiceProviderModel {
@@ -14,10 +15,12 @@ class ServiceProviderModel {
   final String mobileNumber;
   final SpAddressModel? location;
   final List<ServiceModel> services;
+  final SPLiveLocationModel? liveLocation;
   final double rating; 
   final String profileImage;
   final bool isActive;
   final bool isDiscoverable;
+  
 
   ServiceProviderModel({
     required this.spProfile,
@@ -29,6 +32,7 @@ class ServiceProviderModel {
     required this.mobileNumber,
     this.location,
     required this.services,
+    this.liveLocation,
     required this.rating,
     required this.profileImage,
 
@@ -48,9 +52,9 @@ class ServiceProviderModel {
       spDescription: json['sp_description'] as String? ?? '',
       dob: json['dob'] != null ? DateTime.tryParse(json['dob']) : null,
       mobileNumber: json['mobile_number'] as String? ?? '',
-      location: json['location'] != null
-          ? SpAddressModel.fromJson(json['location'])
-          : null,
+      location: json['location'] is Map
+    ? SpAddressModel.fromJson(Map<String, dynamic>.from(json['location']))
+    : null,
       services: (json['services'] as List<dynamic>? ?? [])
           .map((e) => ServiceModel.fromJson(e as Map<String, dynamic>))
           .toList(),
@@ -60,6 +64,11 @@ class ServiceProviderModel {
       // ✅ Parse new fields from backend
       isActive: json['is_active'] as bool? ?? false,
       isDiscoverable: json['is_discoverable'] as bool? ?? false,
+      liveLocation: json['live_location'] != null
+    ? SPLiveLocationModel.fromJson(
+        json['live_location'] as Map<String, dynamic>,
+      )
+    : null,
     );
   }
   

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_application_2/common/controller/registration/fetch_service_group_by_controller.dart';
 import 'package:flutter_application_2/common/utils/kcolors.dart';
+import 'package:flutter_application_2/common/widgets/app_confirmation_dialog.dart';
 import 'package:flutter_application_2/common/widgets/flushbar_service.dart';
 import 'package:flutter_application_2/screens/auth/widgets/verification_prompt_sheet.dart';
 import 'package:provider/provider.dart';
@@ -104,27 +105,16 @@ class _CreateServiceScreenState extends State<CreateServiceScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text("Suggestion Sent"),
-        content: const Text(
-          "Thank you! Our team will review your suggestion. You can now proceed with adding the cost.",
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => context.go(
-              '/providers/services/$serviceId/cost',
-            ),
-            child: const Text(
-              "OK",
-              style: TextStyle(
-                color: Kolors.kPrimary,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
-      ),
+      builder: (_) => AppConfirmationDialog(
+  icon: Icons.mark_email_read_outlined,
+  iconColor: Kolors.kPrimary,
+  title: "Suggestion Sent",
+  message:
+      "Thank you! Our team will review your suggestion. You can now proceed with adding the cost.",
+  confirmText: "OK",
+  cancelText: null,
+  confirmColor: Kolors.kPrimary,
+),
     );
   }
 

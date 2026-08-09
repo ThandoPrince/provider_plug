@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+
 import 'package:flutter_application_2/common/controller/registration/api_client.dart';
 import 'package:flutter_application_2/common/controller/registration/api_exeption.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -14,8 +15,9 @@ class ProviderCompletedServicesApi {
   static Future<List<RatingModel>> fetchRatingsByProviderEmail(
     
   ) async {
+   
     final url = Uri.parse(
-      '$baseUrl/bookings/get_ratings/by_provider_email/',
+      '$baseUrl/bookings/ratings/provider/',
     );
 
     try {

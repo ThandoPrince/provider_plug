@@ -6,7 +6,7 @@ import 'package:camera/camera.dart';
 import 'package:flutter_application_2/common/controller/registration/address_id_doc_controller.dart';
 import 'package:flutter_application_2/common/utils/kcolors.dart';
 import 'package:flutter_application_2/common/widgets/flushbar_service.dart';
-import 'package:flutter_application_2/screens/liveness_capture/views/liveness_capture_screen.dart';
+
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_google_places_hoc081098/flutter_google_places_hoc081098.dart';
 import 'package:flutter_google_places_hoc081098/google_maps_webservice_places.dart';
@@ -15,6 +15,8 @@ import 'package:flutter_vector_icons/flutter_vector_icons.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
+
+import 'profile_photo_capture/video_capture_screen.dart';
 
 class SPAddressDocumentScreen extends StatefulWidget {
   

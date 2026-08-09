@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_application_2/common/controller/auth/auth_session_controller.dart';
+import 'package:flutter_application_2/common/utils/route_checker.dart';
 import 'package:flutter_application_2/screens/auth/views/address_creation_screen.dart';
 import 'package:flutter_application_2/screens/auth/views/auth_creation_screen.dart';
 import 'package:flutter_application_2/screens/auth/views/cost_of_service_creation.dart';
@@ -25,7 +26,7 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 final GoRouter _router = GoRouter(
   navigatorKey: navigatorKey,
-  initialLocation: '/splash',
+  initialLocation: getInitialRoute(),
   routes: [
     GoRoute(
       path: '/splash',
@@ -86,6 +87,7 @@ final GoRouter _router = GoRouter(
         return UploadServiceCostScreen( serviceId: serviceId);
       },
     ),
+    
 
     GoRoute(
       path: '/providers/add/:serviceId/cost',
@@ -149,8 +151,8 @@ final GoRouter _router = GoRouter(
     GoRoute(
       path: '/provider_linked_services',
       builder: (context, state) {
-        final email = state.uri.queryParameters['email'] ?? '';
-        return ProviderLinkedServicesScreen(email: email);
+        
+        return ProviderLinkedServicesScreen();
       },
     ),
 

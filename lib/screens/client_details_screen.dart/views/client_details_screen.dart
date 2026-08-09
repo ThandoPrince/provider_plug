@@ -3,6 +3,7 @@ import 'package:flutter_application_2/common/controller/client/client_ratings_co
 import 'package:flutter_application_2/common/models/models/client_models/clients_details_model.dart';
 import 'package:flutter_application_2/common/models/models/order_service_models/order_service_model.dart';
 import 'package:flutter_application_2/common/utils/kcolors.dart';
+import 'package:flutter_application_2/common/widgets/shimmers/client_ratings_skeleton.dart';
 import 'package:flutter_application_2/screens/client_details_screen.dart/widgets/full_screen_image.dart';
 import 'package:provider/provider.dart';
 
@@ -162,55 +163,88 @@ Consumer<ClientRatingsController>(
             ),
           ),
           children: [
-            if (controller.isLoading)
-              const Padding(
-                padding: EdgeInsets.all(20),
-                child: Center(
-                  child: CircularProgressIndicator(),
-                ),
-              )
-            else if (controller.ratings.isEmpty)
-              const Padding(
-                padding: EdgeInsets.all(20),
-                child: Text(
-                  "No reviews yet.",
-                  style: TextStyle(color: Colors.white70),
-                ),
-              )
-            else
-              ...controller.ratings.map(
-                (rating) => ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: Colors.amber,
-                    child: Text(
-                      "${rating.score ?? "-"}",
-                      style: const TextStyle(
-                        color: Colors.black,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                  title: Text(
-                    rating.review?.isNotEmpty == true
-                        ? rating.review!
-                        : "No written review",
-                    style: const TextStyle(
-                      color: Colors.white,
-                    ),
-                  ),
-                  subtitle: Text(
-                    rating.createdAt
-                            ?.toString()
-                            .split(" ")
-                            .first ??
-                        "",
-                    style: const TextStyle(
-                      color: Colors.white60,
-                    ),
-                  ),
-                ),
-              ),
-          ],
+  // Only show the skeleton on the true first load — a re-fetch
+  // (e.g. re-opening the tile, or a background refresh) already
+  // has cached ratings, so the list stays up instead of flashing.
+  if (controller.isLoading && controller.ratings.isEmpty)
+    const Padding(
+      padding: EdgeInsets.symmetric(vertical: 8),
+      child: ClientRatingsSkeleton(),
+    )
+  else if (controller.errorMessage != null && controller.ratings.isEmpty)
+    Padding(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        children: [
+          const Icon(
+            Icons.error_outline,
+            color: Colors.white,
+            size: 42,
+          ),
+          const SizedBox(height: 10),
+          Text(
+            controller.errorMessage!,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 14,
+            ),
+          ),
+        ],
+      ),
+    )
+  else if (controller.ratings.isEmpty)
+    const Padding(
+      padding: EdgeInsets.all(20),
+      child: Column(
+        children: [
+          Icon(
+            Icons.rate_review_outlined,
+            color: Colors.white,
+            size: 42,
+          ),
+          SizedBox(height: 10),
+          Text(
+            "No reviews yet.",
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 14,
+            ),
+          ),
+        ],
+      ),
+    )
+  else
+    ...controller.ratings.map(
+      (rating) => ListTile(
+        leading: CircleAvatar(
+          backgroundColor: Colors.amber,
+          child: Text(
+            "${rating.score ?? "-"}",
+            style: const TextStyle(
+              color: Colors.black,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+        title: Text(
+          rating.review?.isNotEmpty == true
+              ? rating.review!
+              : "No written review",
+          style: const TextStyle(
+            color: Colors.white,
+          ),
+        ),
+        subtitle: Text(
+          rating.createdAt?.toString().split(" ").first ?? "",
+          style: const TextStyle(
+            color: Colors.white60,
+          ),
+        ),
+      ),
+    ),
+],
         ),
       ),
     );

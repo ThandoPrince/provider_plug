@@ -35,6 +35,7 @@ class SpProfileByEmailApi {
 
       if (response.statusCode == 200) {
         final decodedData = jsonDecode(response.body);
+        debugPrint('RAW SP PROFILE RESPONSE: $decodedData'); 
 
         if (decodedData is Map) {
           return ServiceProviderModel.fromJson(

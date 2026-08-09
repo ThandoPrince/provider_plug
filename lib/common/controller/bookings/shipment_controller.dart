@@ -4,6 +4,15 @@ import 'package:flutter_application_2/common/models/models/order_service_models/
 import 'package:flutter_application_2/common/services/get_provider_shipment_api.dart';
 
 class ShipmentController extends ChangeNotifier {
+
+  String _selectedFilter = "All";
+
+  String get selectedFilter => _selectedFilter;
+
+  void setSelectedFilter(String filter) {
+    _selectedFilter = filter;
+    notifyListeners();
+  }
   bool isLoading = false;
   List<Shipment> shipments = [];
   String? errorMessage;

@@ -1,12 +1,15 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_application_2/common/controller/registration/login_creation_controller.dart';
 import 'package:flutter_application_2/common/utils/kcolors.dart';
+import 'package:flutter_application_2/common/widgets/flushbar_service.dart';
 import 'package:flutter_application_2/screens/onboarding/Widgets/back_exit_widget.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_vector_icons/flutter_vector_icons.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class AuthCreationScreen extends StatefulWidget {
   const AuthCreationScreen({super.key});
@@ -24,6 +27,35 @@ class _AuthCreationScreenState extends State<AuthCreationScreen> {
   bool _obscureConfirmText = true;
 
   bool _obscureText = true;
+
+  Future<void> _openWebsite() async {
+  final uri = Uri.parse('https://plugwebsite.up.railway.app/');
+
+  try {
+    final launched = await launchUrl(
+      uri,
+      mode: LaunchMode.externalApplication,
+    );
+
+    if (!launched && mounted) {
+      FlushbarService.error(
+        context,
+        'Unable to open the website.',
+      );
+    }
+  } catch (e) {
+    if (kDebugMode) {
+      debugPrint('❌ Failed to open website: $e');
+    }
+
+    if (!mounted) return;
+
+    FlushbarService.error(
+      context,
+      'Unable to open the website.',
+    );
+  }
+}
 
   @override
   Widget build(BuildContext context) {
@@ -55,15 +87,56 @@ class _AuthCreationScreenState extends State<AuthCreationScreen> {
                         children: [
                           SizedBox(height: 30.h),
                     
-                          // --- Back Button ---
-                          GestureDetector(
-                            onTap: () => Navigator.pop(context),
-                            child: Icon(
-                              Ionicons.chevron_back,
-                              color: Colors.white,
-                              size: 28.sp,
-                            ),
-                          ),
+
+Row(
+  crossAxisAlignment: CrossAxisAlignment.center,
+  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  children: [
+    // Plug icon
+    Container(
+      width: 56,
+      height: 56,
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Image.asset(
+        'assets/icons/plug_provider_foreground.png',
+        fit: BoxFit.contain,
+      ),
+    ),
+
+    // Help / Contact Us
+    TextButton.icon(
+      onPressed: _openWebsite,
+      style: TextButton.styleFrom(
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(
+          horizontal: 8,
+          vertical: 6,
+        ),
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+      icon: const Icon(
+        Icons.help_outline_rounded,
+        size: 18,
+      ),
+      label: const Text(
+        "Help",
+        style: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    ),
+  ],
+),
+
+
+
+
                     
                           SizedBox(height: 40.h),
                     
@@ -117,7 +190,7 @@ class _AuthCreationScreenState extends State<AuthCreationScreen> {
                           _buildLabel("SECURE PASSWORD"),
                           _buildTextField(
                             controller: _passwordCtrl,
-                            hint: "••••••••",
+                            hint: "••••••",
                             icon: Feather.lock,
                             obscureText: _obscureText,
                             suffixIcon: IconButton(
@@ -137,7 +210,7 @@ class _AuthCreationScreenState extends State<AuthCreationScreen> {
 _buildLabel("CONFIRM PASSWORD"),
 _buildTextField(
   controller: _confirmPasswordCtrl,
-  hint: "••••••••",
+  hint: "••••••",
   icon: Feather.lock,
   obscureText: _obscureConfirmText,
   suffixIcon: IconButton(
@@ -199,7 +272,7 @@ _buildTextField(
                                 ),
                               ),
                             ),
-      SizedBox(height: ScreenUtil().screenHeight * 0.12,),
+      SizedBox(height: ScreenUtil().screenHeight * 0.10,),
                           
                     
                         
@@ -231,7 +304,7 @@ _buildTextField(
                                           );
                                                 
                                           if (success && mounted) {
-                                            context.go('/sp_patch/${_emailCtrl.text.trim()}');
+                                            context.go('/sp_patch');
                                           }
                                         },
                                   child: registerCtrl.isLoading

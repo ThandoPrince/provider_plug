@@ -13,8 +13,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:go_router/go_router.dart';
-import 'package:here_sdk/core.dart';
-import 'package:here_sdk/core.engine.dart';
+
 import 'package:huawei_hmsavailability/huawei_hmsavailability.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -44,7 +43,6 @@ class _SplashScreenState extends State<SplashScreen> {
   bool _hasStarted = false;
   String? _errorMessage;
 
-
   @override
   void initState() {
     super.initState();
@@ -56,86 +54,56 @@ class _SplashScreenState extends State<SplashScreen> {
     }
   }
 
-  
-
   Future<void> _bootstrap() async {
-  try {
-    await _initializeApp();
+    try {
+      await _initializeApp();
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    final bool isFirstTime =
-        Storage().getBool('isFirstTimeProvider') ?? true;
+      
 
-    debugPrint('Splash -> isFirstTimeProvider = $isFirstTime');
+      final auth = AuthSessionController.instance;
 
-    final auth = AuthSessionController.instance;
+      // Load saved tokens from secure storage
+      await auth.loadSession();
 
-    // Load saved tokens from secure storage
-    await auth.loadSession();
+      if (!mounted) return;
 
-    if (!mounted) return;
+      
+    } catch (e, st) {
+      debugPrint("❌ Splash initialization failed: $e\n$st");
 
-    if (isFirstTime) {
-      context.go('/onboarding');
-    } else if (auth.isLoggedIn) {
-      auth.markLoggedIn();
-      context.go('/entrypoint');
-    } else {
-      context.go('/login');
+      if (!mounted) return;
+
+      setState(() {
+        _errorMessage = "Initialization failed.\nCheck logs for details.";
+      });
     }
-  } catch (e, st) {
-    debugPrint("❌ Splash initialization failed: $e\n$st");
-
-    if (!mounted) return;
-
-    setState(() {
-      _errorMessage = "Initialization failed.\nCheck logs for details.";
-    });
   }
-} 
 
   Future<void> _initializeApp() async {
-
     await GetStorage.init();
 
-
     await AuthSessionController.instance.loadSession();
-
 
     final bool envLoaded = await _safeLoadEnv();
     if (!envLoaded) {
       throw Exception("Environment loading failed");
     }
 
-
-    final bool hereSdkInitialized = await _safeInitializeHERESDK();
-    if (!hereSdkInitialized) {
-      throw Exception("HERE SDK initialization failed");
-    }
-
-
     await _detectHuaweiPushEnvironment();
 
     if (!useHuaweiPush) {
-
       await _initializeFirebase();
 
-      fcm.FirebaseMessaging.onBackgroundMessage(
-        firebaseBackgroundHandler,
-      );
-
+      fcm.FirebaseMessaging.onBackgroundMessage(firebaseBackgroundHandler);
 
       await _requestFirebasePermission();
     }
 
-
     await _requestNotificationPermission();
 
-
     await PushNotificationService.instance.initialize();
-
-   
   }
 
   Future<void> _detectHuaweiPushEnvironment() async {
@@ -227,30 +195,6 @@ class _SplashScreenState extends State<SplashScreen> {
     }
   }
 
-  Future<bool> _safeInitializeHERESDK() async {
-    final String hereAccessKeyID = dotenv.env['HEREACCESSKEYID'] ?? '';
-    final String hereKeySecret = dotenv.env['HEREKEYSECRET'] ?? '';
-
-    try {
-      SdkContext.init(IsolateOrigin.main);
-
-      final authMode = AuthenticationMode.withKeySecret(
-        hereAccessKeyID,
-        hereKeySecret,
-      );
-
-      final sdkOptions = SDKOptions.withAuthenticationMode(authMode);
-
-      await SDKNativeEngine.makeSharedInstance(sdkOptions);
-
-      debugPrint("✅ HERE SDK initialized successfully");
-      return true;
-    } catch (e, st) {
-      debugPrint("❌ HERE SDK initialization failed: $e\n$st");
-      return false;
-    }
-  }
-
   @override
   void dispose() {
     SystemChrome.setEnabledSystemUIMode(
@@ -303,18 +247,17 @@ class _SplashScreenState extends State<SplashScreen> {
             end: Alignment.bottomLeft,
           ),
         ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            SizedBox(
-              height: 100.h,
-              child: Image.asset('assets/icons/plug_icon.png'),
-            ),
-            SizedBox(height: 20.h),
-          
-          
-          ],
-        ),
+        // child: Column(
+        //   mainAxisAlignment: MainAxisAlignment.center,
+        //   children: [
+        //     SizedBox(
+        //       height: 100.h,
+        //       child: Image.asset('assets/icons/plug_icon.png'),
+        //     ),
+        //     SizedBox(height: 20.h),
+
+        //   ],
+        // ),
       ),
     );
   }

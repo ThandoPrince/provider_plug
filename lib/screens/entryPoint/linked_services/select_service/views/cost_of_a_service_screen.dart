@@ -1,17 +1,21 @@
 import 'dart:io';
 
-import 'package:another_flushbar/flushbar_helper.dart';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_application_2/common/controller/sp_contollers/cost_of_a_service_controller.dart';
+import 'package:flutter_application_2/common/controller/registration/a_cost_of_a_service_controller.dart';
+
 import 'package:flutter_application_2/common/controller/registration/provider_qualification_controller.dart';
 
 import 'package:flutter_application_2/common/utils/kcolors.dart';
-import 'package:flutter_application_2/screens/entryPoint/linked_services/select_service/views/service_added_overlay.dart';
+import 'package:flutter_application_2/common/widgets/app_confirmation_dialog.dart';
+import 'package:flutter_application_2/common/widgets/flushbar_service.dart';
 
 
-import 'package:go_router/go_router.dart';
+
+
+
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
@@ -45,11 +49,11 @@ class _QualificationDraft {
 enum _QualificationUploadStatus { pending, uploading, uploaded, failed }
 
 const List<Map<String, String>> _kDocumentTypes = [
-  {"value": "certificate", "label": "Certificate"},
-  {"value": "license", "label": "License"},
-  {"value": "insurance", "label": "Insurance"},
-  {"value": "reference", "label": "Reference Letter"},
-  {"value": "other", "label": "Other"},
+  {"value": "CERTIFICATE", "label": "Certificate"},
+  {"value": "LICENSE", "label": "License"},
+  {"value": "INSURANCE", "label": "Insurance"},
+  {"value": "REFERENCE", "label": "Reference Letter"},
+  {"value": "OTHER", "label": "Other"},
 ];
 
 class CreateACostOfServiceScreen extends StatefulWidget {
@@ -85,8 +89,8 @@ class _CreateACostOfServiceScreenState extends State<CreateACostOfServiceScreen>
   }
 
   void _showError(String message) {
-    HapticFeedback.vibrate();
-    FlushbarHelper.createError(message: message).show(context);
+    
+    FlushbarService.error(context, message);
   }
 
   Future<void> _pickImages() async {
@@ -114,9 +118,9 @@ class _CreateACostOfServiceScreenState extends State<CreateACostOfServiceScreen>
     });
 
     if (pickedFiles.length > remainingSlots) {
-      FlushbarHelper.createInformation(
-        message: 'Only $remainingSlots image(s) were added. Maximum is 5.',
-      ).show(context);
+      FlushbarService.warning(
+        context, 'Only $remainingSlots image(s) were added. Maximum is 5.',
+      );
     }
   }
 
@@ -165,161 +169,212 @@ class _CreateACostOfServiceScreenState extends State<CreateACostOfServiceScreen>
     _uploadQualification(draft);
   }
 
-  Future<Map<String, dynamic>?> _showQualificationDetailsSheet({
-    required String fileName,
-  }) {
-    final titleController = TextEditingController();
-    final issuingBodyController = TextEditingController();
-    String documentType = _kDocumentTypes.first['value']!;
-    DateTime? issueDate;
-    DateTime? expiryDate;
+ Future<Map<String, dynamic>?> _showQualificationDetailsSheet({
+  required String fileName,
+}) {
+  final titleController = TextEditingController();
+  final issuingBodyController = TextEditingController();
 
-    return showModalBottomSheet<Map<String, dynamic>>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (sheetContext) {
-        return StatefulBuilder(
-          builder: (sheetContext, setSheetState) {
-            Future<void> pickDate({required bool isIssueDate}) async {
-              final picked = await showDatePicker(
-                context: sheetContext,
-                initialDate: DateTime.now(),
-                firstDate: DateTime(1990),
-                lastDate: DateTime(2100),
-              );
-              if (picked != null) {
-                setSheetState(() {
-                  if (isIssueDate) {
-                    issueDate = picked;
-                  } else {
-                    expiryDate = picked;
-                  }
-                });
-              }
+  String documentType = _kDocumentTypes.first['value']!;
+  DateTime? issueDate;
+  DateTime? expiryDate;
+
+  return showModalBottomSheet<Map<String, dynamic>>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (sheetContext) {
+      return StatefulBuilder(
+        builder: (sheetContext, setSheetState) {
+          Future<void> pickDate({required bool isIssueDate}) async {
+            final picked = await showDatePicker(
+              context: sheetContext,
+              initialDate: DateTime.now(),
+              firstDate: DateTime(1990),
+              lastDate: DateTime(2100),
+            );
+
+            if (picked != null) {
+              setSheetState(() {
+                if (isIssueDate) {
+                  issueDate = picked;
+                } else {
+                  expiryDate = picked;
+                }
+              });
             }
+          }
 
-            return Padding(
-              padding: EdgeInsets.only(
-                bottom: MediaQuery.of(sheetContext).viewInsets.bottom,
-              ),
-              child: Container(
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          return Padding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(sheetContext).viewInsets.bottom,
+            ),
+            child: Container(
+              decoration: const BoxDecoration(
+                color: Kolors.kDark,
+                borderRadius: BorderRadius.vertical(
+                  top: Radius.circular(28),
                 ),
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
-                child: SingleChildScrollView(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Row(
-                        children: [
-                          const Icon(Icons.description_outlined,
-                              color: Kolors.kPrimary),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              fileName,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(fontWeight: FontWeight.w600),
-                            ),
-                          ),
-                        ],
+              ),
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 46,
+                        height: 5,
+                        decoration: BoxDecoration(
+                          color: Colors.white24,
+                          borderRadius: BorderRadius.circular(100),
+                        ),
                       ),
-                      const SizedBox(height: 20),
-                      _sheetLabel("TITLE"),
-                      TextField(
-                        controller: titleController,
-                        decoration: _sheetInputDecoration("e.g. Electrical Trade Certificate"),
-                      ),
-                      const SizedBox(height: 16),
-                      _sheetLabel("DOCUMENT TYPE"),
-                      DropdownButtonFormField<String>(
-                        value: documentType,
-                        decoration: _sheetInputDecoration(null),
-                        items: _kDocumentTypes
-                            .map((t) => DropdownMenuItem(
-                                  value: t['value'],
-                                  child: Text(t['label']!),
-                                ))
-                            .toList(),
-                        onChanged: (v) {
-                          if (v != null) setSheetState(() => documentType = v);
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      _sheetLabel("ISSUING BODY (OPTIONAL)"),
-                      TextField(
-                        controller: issuingBodyController,
-                        decoration: _sheetInputDecoration("e.g. Dept. of Labour"),
-                      ),
-                      const SizedBox(height: 16),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _datePickerField(
-                              label: "ISSUE DATE",
-                              value: issueDate,
-                              onTap: () => pickDate(isIssueDate: true),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: _datePickerField(
-                              label: "EXPIRY DATE",
-                              value: expiryDate,
-                              onTap: () => pickDate(isIssueDate: false),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 24),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 52,
-                        child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Kolors.kPrimary,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                          ),
-                          onPressed: () {
-                            if (titleController.text.trim().isEmpty) {
-                              ScaffoldMessenger.of(sheetContext).showSnackBar(
-                                const SnackBar(content: Text("Title is required.")),
-                              );
-                              return;
-                            }
-                            Navigator.pop(sheetContext, {
-                              'title': titleController.text.trim(),
-                              'documentType': documentType,
-                              'issuingBody': issuingBodyController.text.trim(),
-                              'issueDate': issueDate,
-                              'expiryDate': expiryDate,
-                            });
-                          },
-                          child: const Text(
-                            "Add Document",
-                            style: TextStyle(
+                    ),
+
+                    const SizedBox(height: 22),
+
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.description_outlined,
+                          color: Kolors.kPrimary,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            fileName,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
                               color: Colors.white,
-                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                         ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    _sheetLabel("TITLE"),
+                    TextField(
+                      controller: titleController,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: _sheetInputDecoration(
+                        "e.g. Electrical Trade Certificate",
                       ),
-                    ],
-                  ),
+                    ),
+
+                    const SizedBox(height: 18),
+
+                    _sheetLabel("DOCUMENT TYPE"),
+                    DropdownButtonFormField<String>(
+                      value: documentType,
+                      dropdownColor: const Color(0xFF2A2A2A),
+                      style: const TextStyle(color: Colors.white),
+                      iconEnabledColor: Colors.white,
+                      decoration: _sheetInputDecoration(null),
+                      items: _kDocumentTypes
+                          .map(
+                            (t) => DropdownMenuItem(
+                              value: t["value"],
+                              child: Text(t["label"]!),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (value) {
+                        if (value != null) {
+                          setSheetState(() => documentType = value);
+                        }
+                      },
+                    ),
+
+                    const SizedBox(height: 18),
+
+                    _sheetLabel("ISSUING BODY (OPTIONAL)"),
+                    TextField(
+                      controller: issuingBodyController,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: _sheetInputDecoration(
+                        "e.g. Dept. of Labour",
+                      ),
+                    ),
+
+                    const SizedBox(height: 18),
+
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _datePickerField(
+                            label: "ISSUE DATE",
+                            value: issueDate,
+                            onTap: () => pickDate(isIssueDate: true),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _datePickerField(
+                            label: "EXPIRY DATE",
+                            value: expiryDate,
+                            onTap: () => pickDate(isIssueDate: false),
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 28),
+
+                    SizedBox(
+                      width: double.infinity,
+                      height: 54,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Kolors.kPrimary,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                        onPressed: () {
+                          if (titleController.text.trim().isEmpty) {
+                            FlushbarService.error(
+                              sheetContext,
+                              "Please provide a title for the document.",
+                            );
+                            return;
+                          }
+
+                          Navigator.pop(sheetContext, {
+                            "title": titleController.text.trim(),
+                            "documentType": documentType,
+                            "issuingBody":
+                                issuingBodyController.text.trim(),
+                            "issueDate": issueDate,
+                            "expiryDate": expiryDate,
+                          });
+                        },
+                        child: const Text(
+                          "Add Document",
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 15,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            );
-          },
-        );
-      },
-    );
-  }
+            ),
+          );
+        },
+      );
+    },
+  );
+}
 
   Widget _sheetLabel(String text) => Padding(
         padding: const EdgeInsets.only(bottom: 6, left: 2),
@@ -417,369 +472,385 @@ class _CreateACostOfServiceScreenState extends State<CreateACostOfServiceScreen>
   // =========================================================
 
   Future<void> _submit() async {
-    // 1. Check form validation
-    if (!_formKey.currentState!.validate()) {
-      HapticFeedback.heavyImpact();
-      return;
-    }
-
-    // Block submit while a document is actively uploading so the user
-    // doesn't navigate away mid-upload.
-    if (_qualifications.any((q) => q.status == _QualificationUploadStatus.uploading)) {
-      _showError("Please wait for document uploads to finish.");
-      return;
-    }
-
-    // 2. Clear any previous errors in controller
-    final controller = context.read<CostOfAServiceController>();
-    controller.clearError();
-
-    final success = await controller.updateServiceCost(
-      notes: _notesController.text.trim(),
-      
-      serviceId: widget.serviceId,
-      cost: double.parse(_priceController.text.trim()),
-      images: _serviceImages,
-    );
-
-    if (success && mounted) {
-      _showSuccessOverlay();
-    } else if (mounted) {
-      // Show server error via Flushbar
-      _showError(controller.errorMessage ?? "An unexpected error occurred.");
-    }
+  // Validate text fields
+  if (!_formKey.currentState!.validate()) {
+    HapticFeedback.heavyImpact();
+    return;
   }
 
-  void _showSuccessOverlay() {
-    showGeneralDialog(
-      context: context,
-      barrierDismissible: false,
-      barrierColor: Colors.black.withOpacity(0.85), // Darker for better focus
-      transitionDuration: const Duration(milliseconds: 400),
-      pageBuilder: (context, anim1, anim2) => const ServiceAddedSuccessOverlay(),
-      transitionBuilder: (context, anim1, anim2, child) {
-        return FadeTransition(
-          opacity: anim1,
-          child: ScaleTransition(scale: anim1, child: child),
-        );
-      },
+  // Pricing notes required
+  if (_notesController.text.trim().isEmpty) {
+    FlushbarService.error(
+      context,
+      "Please provide pricing notes.",
+    );
+    return;
+  }
+
+  // At least one image required
+  if (_serviceImages.isEmpty) {
+    FlushbarService.error(
+      context,
+      "Please upload at least one photo of your service.",
+    );
+    return;
+  }
+
+  // Don't allow submission while documents are uploading
+  if (_qualifications.any(
+      (q) => q.status == _QualificationUploadStatus.uploading)) {
+    _showError("Please wait for document uploads to finish.");
+    return;
+  }
+
+  final controller = context.read<ACostOfServiceController>();
+  controller.clearError();
+
+  final success = await controller.updateServiceCost(
+    notes: _notesController.text.trim(),
+    serviceId: widget.serviceId,
+    cost: double.parse(_priceController.text.trim()),
+    images: _serviceImages,
+  );
+
+  if (success && mounted) {
+    debugPrint("Returning TRUE from Cost screen");
+    Navigator.pop(context, true);
+  } else if (mounted) {
+    _showError(
+      controller.errorMessage ?? "An unexpected error occurred.",
     );
   }
+}
+
+  
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final controller = context.watch<CostOfAServiceController>();
+    final controller = context.watch<ACostOfServiceController>();
 
-    return Scaffold(
-      backgroundColor: Kolors.kPrimary,
-      extendBodyBehindAppBar: true,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(
-            Icons.arrow_back_ios_new,
-            color: Kolors.kOffWhite,
-            size: 20,
+    return PopScope(
+  canPop: false,
+      child: Scaffold(
+        backgroundColor: Kolors.kPrimary,
+        extendBodyBehindAppBar: true,
+        
+        body: Container(
+          width: double.infinity,
+          height: double.infinity,
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [Kolors.kPrimary, Color(0xFF1A1A1A)],
+            ),
           ),
-          onPressed: () => context.pop(),
-        ),
-      ),
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Kolors.kPrimary, Color(0xFF1A1A1A)],
-          ),
-        ),
-        child: Column(
-          children: [
-            Expanded(
-              child: SafeArea(
-                bottom: false,
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              "STEP 2 OF 2",
-                              style: theme.textTheme.labelMedium?.copyWith(
-                                color: Kolors.kOffWhite,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 1.5,
-                              ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Kolors.kOffWhite.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: const Text(
-                                "Final Step",
-                                style: TextStyle(
+          child: Column(
+            children: [
+              Expanded(
+                child: SafeArea(
+                  bottom: false,
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                    child: Form(
+                      key: _formKey,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                "STEP 2 OF 2",
+                                style: theme.textTheme.labelMedium?.copyWith(
                                   color: Kolors.kOffWhite,
-                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 1.5,
                                 ),
                               ),
-                            )
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          "Set Your Base Rate",
-                          style: theme.textTheme.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: Kolors.kOffWhite,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          "Enter the standard amount you charge for this service. You can clarify details in the notes and add photos of your work.",
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: Kolors.kOffWhite.withOpacity(0.8),
-                          ),
-                        ),
-                        const SizedBox(height: 32),
-    
-                        _buildInputLabel("BASE PRICE"),
-                        _buildInputContainer(
-                          child: TextFormField(
-                            controller: _priceController,
-                            keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true,
-                            ),
-                            style: const TextStyle(
-                              color: Kolors.kDark,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 18,
-                            ),
-                            decoration: const InputDecoration(
-                              hintText: "0.00",
-                              prefixText: "R ",
-                              prefixStyle: TextStyle(
-                                color: Kolors.kPrimary,
-                                fontWeight: FontWeight.bold,
-                              ),
-                              border: InputBorder.none,
-                              contentPadding:
-                                  EdgeInsets.symmetric(vertical: 12),
-                            ),
-                            validator: (value) {
-                              if (value == null || value.trim().isEmpty) {
-                                return "Price is required";
-                              }
-                              if (double.tryParse(value) == null) {
-                                return "Invalid number";
-                              }
-                              return null;
-                            },
-                          ),
-                        ),
-    
-                        const SizedBox(height: 24),
-    
-                        _buildInputLabel("PRICING NOTES (OPTIONAL)"),
-                        _buildInputContainer(
-                          child: TextFormField(
-                            controller: _notesController,
-                            maxLines: 4,
-                            style: const TextStyle(color: Kolors.kDark),
-                            decoration: const InputDecoration(
-                              hintText:
-                                  "e.g., Price varies based on location or equipment required...",
-                              hintStyle: TextStyle(
-                                color: Colors.grey,
-                                fontSize: 14,
-                              ),
-                              border: InputBorder.none,
-                            ),
-                          ),
-                        ),
-    
-                        const SizedBox(height: 24),
-    
-                        _buildInputLabel("SERVICE PHOTOS (MAX 5)"),
-                        GestureDetector(
-                          onTap: _pickImages,
-                          child: Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(12),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.1),
-                                  blurRadius: 10,
-                                  offset: const Offset(0, 4),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 4,
                                 ),
-                              ],
-                            ),
-                            child: Row(
-                              children: [
-                                const Icon(
-                                  Icons.add_photo_alternate_outlined,
-                                  color: Kolors.kPrimary,
+                                decoration: BoxDecoration(
+                                  color: Kolors.kOffWhite.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(20),
                                 ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Text(
-                                    _serviceImages.isEmpty
-                                        ? "Add photos of the service you provide"
-                                        : "${_serviceImages.length}/5 selected",
-                                    style: const TextStyle(
-                                      color: Kolors.kDark,
-                                      fontWeight: FontWeight.w600,
-                                    ),
+                                child: const Text(
+                                  "Final Step",
+                                  style: TextStyle(
+                                    color: Kolors.kOffWhite,
+                                    fontSize: 10,
                                   ),
                                 ),
-                              ],
+                              )
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            "Set Your Base Rate",
+                            style: theme.textTheme.headlineSmall?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: Kolors.kOffWhite,
                             ),
                           ),
-                        ),
-    
-                        const SizedBox(height: 12),
-    
-                        if (_serviceImages.isNotEmpty)
-                          SizedBox(
-                            height: 110,
-                            child: ListView.separated(
-                              scrollDirection: Axis.horizontal,
-                              itemCount: _serviceImages.length,
-                              separatorBuilder: (_, __) =>
-                                  const SizedBox(width: 10),
-                              itemBuilder: (context, index) {
-                                final image = _serviceImages[index];
-    
-                                return Stack(
-                                  children: [
-                                    ClipRRect(
-                                      borderRadius: BorderRadius.circular(12),
-                                      child: Image.file(
-                                        image,
-                                        width: 110,
-                                        height: 110,
-                                        fit: BoxFit.cover,
-                                      ),
-                                    ),
-                                    Positioned(
-                                      top: 6,
-                                      right: 6,
-                                      child: GestureDetector(
-                                        onTap: () => _removeImage(index),
-                                        child: Container(
-                                          padding: const EdgeInsets.all(4),
-                                          decoration: const BoxDecoration(
-                                            color: Colors.black54,
-                                            shape: BoxShape.circle,
-                                          ),
-                                          child: const Icon(
-                                            Icons.close,
-                                            color: Colors.white,
-                                            size: 16,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                );
+                          const SizedBox(height: 12),
+                          Text(
+                            "Enter the standard amount you charge for this service. You can clarify details in the notes and add photos of your work.",
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: Kolors.kOffWhite.withOpacity(0.8),
+                            ),
+                          ),
+                          const SizedBox(height: 32),
+      
+                          _buildInputLabel("BASE PRICE"),
+                          _buildInputContainer(
+                            child: TextFormField(
+                              controller: _priceController,
+                              keyboardType: const TextInputType.numberWithOptions(
+                                decimal: true,
+                              ),
+                              style: const TextStyle(
+                                color: Kolors.kDark,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 18,
+                              ),
+                              decoration: const InputDecoration(
+                                hintText: "0.00",
+                                prefixText: "R ",
+                                prefixStyle: TextStyle(
+                                  color: Kolors.kPrimary,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                border: InputBorder.none,
+                                contentPadding:
+                                    EdgeInsets.symmetric(vertical: 12),
+                              ),
+                              validator: (value) {
+                                if (value == null || value.trim().isEmpty) {
+                                  return "Price is required";
+                                }
+                                if (double.tryParse(value) == null) {
+                                  return "Invalid number";
+                                }
+                                return null;
                               },
                             ),
                           ),
-
-                        const SizedBox(height: 28),
-
-                        // --- Professional Documents / References ---
-                        _buildInputLabel("PROFESSIONAL DOCUMENTS & REFERENCES (OPTIONAL)"),
-                        Text(
-                          "Add certificates, licenses, insurance, or reference letters to strengthen your profile.",
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: Kolors.kOffWhite.withOpacity(0.65),
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        GestureDetector(
-                          onTap: _pickQualificationDocument,
-                          child: Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(12),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.1),
-                                  blurRadius: 10,
-                                  offset: const Offset(0, 4),
+      
+                          const SizedBox(height: 24),
+      
+                          _buildInputLabel("PRICING NOTES"),
+                          _buildInputContainer(
+                            child: TextFormField(
+                              controller: _notesController,
+                              maxLines: 4,
+                              style: const TextStyle(color: Kolors.kDark),
+                              decoration: const InputDecoration(
+                                hintText:
+                                    "e.g., Price varies based on location or equipment required...",
+                                hintStyle: TextStyle(
+                                  color: Colors.grey,
+                                  fontSize: 14,
                                 ),
-                              ],
-                            ),
-                            child: Row(
-                              children: [
-                                const Icon(
-                                  Icons.upload_file_outlined,
-                                  color: Kolors.kPrimary,
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Text(
-                                    _qualifications.isEmpty
-                                        ? "Add a certificate, license, or reference"
-                                        : "${_qualifications.length}/5 documents added",
-                                    style: const TextStyle(
-                                      color: Kolors.kDark,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-
-                        if (_qualifications.isNotEmpty) ...[
-                          const SizedBox(height: 12),
-                          ..._qualifications.asMap().entries.map((entry) {
-                            final index = entry.key;
-                            final q = entry.value;
-                            return _buildQualificationTile(index, q);
-                          }),
-                        ],
-    
-                        if (controller.errorMessage != null)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 16),
-                            child: Text(
-                              controller.errorMessage!,
-                              style: const TextStyle(
-                                color: Colors.redAccent,
-                                fontWeight: FontWeight.w500,
+                                border: InputBorder.none,
                               ),
                             ),
                           ),
-                        const SizedBox(height: 16),
-                      ],
+      
+                          const SizedBox(height: 24),
+      
+                          _buildInputLabel("SERVICE PHOTOS (MAX 5)"),
+                          GestureDetector(
+                            onTap: _pickImages,
+                            child: Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(12),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.1),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.add_photo_alternate_outlined,
+                                    color: Kolors.kPrimary,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Text(
+                                      _serviceImages.isEmpty
+                                          ? "Add photos of the service you provide"
+                                          : "${_serviceImages.length}/5 selected",
+                                      style: const TextStyle(
+                                        color: Kolors.kDark,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+      
+                          const SizedBox(height: 12),
+      
+                          if (_serviceImages.isNotEmpty)
+                            SizedBox(
+                              height: 110,
+                              child: ListView.separated(
+                                scrollDirection: Axis.horizontal,
+                                itemCount: _serviceImages.length,
+                                separatorBuilder: (_, __) =>
+                                    const SizedBox(width: 10),
+                                itemBuilder: (context, index) {
+                                  final image = _serviceImages[index];
+      
+                                  return Stack(
+                                    children: [
+                                      ClipRRect(
+                                        borderRadius: BorderRadius.circular(12),
+                                        child: Image.file(
+                                          image,
+                                          width: 110,
+                                          height: 110,
+                                          fit: BoxFit.cover,
+                                        ),
+                                      ),
+                                      Positioned(
+                                        top: 6,
+                                        right: 6,
+                                        child: GestureDetector(
+                                          onTap: () => _removeImage(index),
+                                          child: Container(
+                                            padding: const EdgeInsets.all(4),
+                                            decoration: const BoxDecoration(
+                                              color: Colors.black54,
+                                              shape: BoxShape.circle,
+                                            ),
+                                            child: const Icon(
+                                              Icons.close,
+                                              color: Colors.white,
+                                              size: 16,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  );
+                                },
+                              ),
+                            ),
+      
+                          const SizedBox(height: 28),
+      
+                          // --- Professional Documents / References ---
+                          _buildInputLabel("PROFESSIONAL DOCUMENTS & REFERENCES (OPTIONAL)"),
+                          Text(
+                            "Add certificates, licenses, insurance, or reference letters to strengthen your profile.",
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: Kolors.kOffWhite.withOpacity(0.65),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          GestureDetector(
+                            onTap: () async {
+        final proceed = await showDialog<bool>(
+      context: context,
+      builder: (_) => const AppConfirmationDialog(
+        icon: Icons.privacy_tip_outlined,
+        iconColor: Colors.orangeAccent,
+        title: "Before You Upload",
+        message:
+            "Qualifications you upload may be shared with potential clients to help verify your experience and build trust.\n\n"
+            "Please avoid uploading documents that contain sensitive personal information, such as your ID number, passport details, banking information, home address, or any other confidential data that is not necessary for clients to view.\n\n"
+            "You are responsible for ensuring that the documents you upload are appropriate for sharing.",
+        confirmText: "I Understand",
+        cancelText: "Cancel",
+        confirmColor: Kolors.kPrimary,
+      ),
+        );
+      
+        if (proceed != true) return;
+      
+        _pickQualificationDocument();
+      },
+                            child: Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(12),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.1),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.upload_file_outlined,
+                                    color: Kolors.kPrimary,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Text(
+                                      _qualifications.isEmpty
+                                          ? "Add a certificate, license, or reference"
+                                          : "${_qualifications.length}/5 documents added",
+                                      style: const TextStyle(
+                                        color: Kolors.kDark,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+      
+                          if (_qualifications.isNotEmpty) ...[
+                            const SizedBox(height: 12),
+                            ..._qualifications.asMap().entries.map((entry) {
+                              final index = entry.key;
+                              final q = entry.value;
+                              return _buildQualificationTile(index, q);
+                            }),
+                          ],
+      
+                          if (controller.errorMessage != null)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 16),
+                              child: Text(
+                                controller.errorMessage!,
+                                style: const TextStyle(
+                                  color: Colors.redAccent,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          const SizedBox(height: 16),
+                        ],
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-            _buildFooterAction(controller),
-          ],
+              _buildFooterAction(controller),
+            ],
+          ),
         ),
       ),
     );
@@ -860,7 +931,7 @@ class _CreateACostOfServiceScreenState extends State<CreateACostOfServiceScreen>
     );
   }
 
-  Widget _buildFooterAction(CostOfAServiceController controller) {
+  Widget _buildFooterAction(ACostOfServiceController controller) {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: const BoxDecoration(color: Colors.transparent),

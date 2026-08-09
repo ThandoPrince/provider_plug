@@ -5,7 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_application_2/common/controller/registration/profile_creation_controller.dart';
 import 'package:flutter_application_2/common/utils/kcolors.dart';
 import 'package:flutter_application_2/common/widgets/flushbar_service.dart';
-import 'package:flutter_application_2/screens/auth/views/profile_photo_capture/profile_photo_capture_screen.dart';
+
 import 'package:flutter_application_2/screens/onboarding/Widgets/back_exit_widget.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_vector_icons/flutter_vector_icons.dart';
@@ -140,27 +140,24 @@ class _SPProfilePatchScreenState extends State<SPProfilePatchScreen> {
   }
 
   // --- Helper: Custom AppBar ---
-  Widget _buildAppBar(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 10.h),
-      child: Row(
-        children: [
-          IconButton(
-            icon: const Icon(Feather.chevron_left, color: Colors.white),
-            onPressed: () => Navigator.pop(context),
+  // --- Helper: Custom AppBar ---
+Widget _buildAppBar(BuildContext context) {
+  return Padding(
+    padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 10.h),
+    child: Row(
+      children: [
+        Text(
+          "Profile Setup",
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 18.sp,
+            fontWeight: FontWeight.bold,
           ),
-          Text(
-            "Profile Setup",
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 18.sp,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+        ),
+      ],
+    ),
+  );
+}
 
   
 
@@ -210,7 +207,7 @@ Widget _buildImagePicker() {
               ? FileImage(_profileImage!)
               : null,
           child: _profileImage == null
-              ? Icon(Feather.camera, size: 35.sp, color: Colors.white24)
+              ? Icon(Feather.camera, size: 35.sp, color: Kolors.kOffWhite)
               : null,
         ),
       ),
@@ -219,10 +216,10 @@ Widget _buildImagePicker() {
         child: Container(
           padding: EdgeInsets.all(8.r),
           decoration: const BoxDecoration(
-            color: Colors.white,
+            color: Kolors.kPrimary,
             shape: BoxShape.circle,
           ),
-          child: Icon(Feather.plus, size: 18.sp, color: Kolors.kPrimary),
+          child: Icon(Feather.plus, size: 18.sp, color: Kolors.kSecondaryLight),
         ),
       ),
     ],
@@ -230,14 +227,99 @@ Widget _buildImagePicker() {
 }
 
 Future<void> _captureProfilePhoto() async {
-  final result = await Navigator.push<File>(
-    context,
-    MaterialPageRoute(builder: (_) => const ProfilePhotoCaptureScreen()),
+  final ImagePicker picker = ImagePicker();
+  final XFile? captured = await picker.pickImage(
+    source: ImageSource.camera,
+    preferredCameraDevice: CameraDevice.front,
+    imageQuality: 85,
   );
 
-  if (result != null && mounted) {
-    setState(() => _profileImage = result);
+  if (captured == null) return; // user backed out of camera
+
+  final File capturedFile = File(captured.path);
+  final bool? confirmed = await _showPhotoConfirmationDialog(capturedFile);
+
+  if (confirmed == true) {
+    setState(() => _profileImage = capturedFile);
+  } else if (confirmed == false) {
+    // Retake
+    _captureProfilePhoto();
   }
+}
+
+Future<bool?> _showPhotoConfirmationDialog(File imageFile) {
+  return showDialog<bool>(
+    context: context,
+    barrierDismissible: false,
+    builder: (context) {
+      return Dialog(
+        backgroundColor: const Color(0xFF1A1A1A),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20.r)),
+        child: Padding(
+          padding: EdgeInsets.all(16.w),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                "Use this photo?",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16.sp,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              SizedBox(height: 16.h),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(16.r),
+                child: Image.file(
+                  imageFile,
+                  height: 250.h,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                ),
+              ),
+              SizedBox(height: 20.h),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Colors.white38),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14.r),
+                        ),
+                        padding: EdgeInsets.symmetric(vertical: 14.h),
+                      ),
+                      onPressed: () => Navigator.of(context).pop(false),
+                      child: const Text(
+                        "Retake",
+                        style: TextStyle(color: Colors.white70),
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: 12.w),
+                  Expanded(
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Kolors.kPrimary,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14.r),
+                        ),
+                        padding: EdgeInsets.symmetric(vertical: 14.h),
+                      ),
+                      onPressed: () => Navigator.of(context).pop(true),
+                      child: const Text("Use Photo"),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
 }
   // --- Helper: Label Style ---
   Widget _buildLabel(String text) {

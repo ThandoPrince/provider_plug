@@ -23,7 +23,7 @@ class NewBookingsByEmailApi {
 
     try {
       final response = await ApiClient.instance.request(
-        (token) => http.get(
+        (token) => http.get(  
           url,
           headers: {
             'Content-Type': 'application/json',

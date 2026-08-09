@@ -32,14 +32,14 @@ class PushNotificationService {
   );
 
   Future<void> initialize() async {
-    await _initializeLocalNotifications();
+  await _initializeLocalNotifications().timeout(const Duration(seconds: 5));
 
-    if (useHuaweiPush) {
-      await _initializeHuawei();
-    } else {
-      await _initializeFirebase();
-    }
+  if (useHuaweiPush) {
+    await _initializeHuawei().timeout(const Duration(seconds: 5));
+  } else {
+    await _initializeFirebase().timeout(const Duration(seconds: 10));
   }
+}
 
   Future<void> _initializeLocalNotifications() async {
     const androidSettings = AndroidInitializationSettings(

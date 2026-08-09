@@ -16,20 +16,22 @@ class AuthSessionController with ChangeNotifier {
       AuthSessionController._internal();
 Future<String?>? _refreshFuture;
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
+  static const _kIsLoggedIn = "auth_is_logged_in";
 
 
   int? _id;
   String? _accessToken;
   String? _refreshToken;
 
+  bool _isLoggedIn = false;
+bool get isLoggedIn => _isLoggedIn;
+
 
   int? get id => _id;
   String? get accessToken => _accessToken;
   String? get refreshToken => _refreshToken;
 
-  bool get isLoggedIn =>
-      _accessToken?.isNotEmpty == true &&
-      _refreshToken?.isNotEmpty == true;
+
 
   bool _loggedOut = false;
   bool get loggedOut => _loggedOut;
@@ -41,32 +43,46 @@ Future<String?>? _refreshFuture;
   static const _kRefresh = "auth_refresh_token";
 
   Future<void> loadSession() async {
-  
+  final storedId = await _storage.read(key: _kId);
 
-    final storedId = await _storage.read(key: _kId);
-    _id = storedId != null ? int.tryParse(storedId) : null;
+  _id = storedId != null
+      ? int.tryParse(storedId)
+      : null;
 
-    _accessToken = await _storage.read(key: _kAccess);
-    _refreshToken = await _storage.read(key: _kRefresh);
+  _accessToken = await _storage.read(key: _kAccess);
+  _refreshToken = await _storage.read(key: _kRefresh);
 
-    notifyListeners();
-  }
+  final storedLoggedIn =
+      await _storage.read(key: _kIsLoggedIn);
 
+  _isLoggedIn = storedLoggedIn == 'true';
+  _loggedOut = !_isLoggedIn;
+
+  notifyListeners();
+}
+
+ Future<void> setLoggedIn(bool value) async {
+  _isLoggedIn = value;
+  _loggedOut = !value;
+
+  await _storage.write(
+    key: _kIsLoggedIn,
+    value: value.toString(),
+  );
+
+  notifyListeners();
+}
   Future<String?> getValidAccessToken() async {
   final token = accessToken;
   if (token == null) return null;
 
-  // optional: decode JWT expiry check here
 
   final newToken = await refreshAccessToken();
   return newToken ?? token;
 }
-void markLoggedIn() {
-  if (_loggedOut) {
-    _loggedOut = false;
-    notifyListeners();
-  }
-}
+
+
+
   Future<void> setSession({
     required int id,
    
@@ -94,6 +110,7 @@ void markLoggedIn() {
       _accessToken = null;
       _refreshToken = null;
   _loggedOut = true;
+  _isLoggedIn = false;
       await _storage.deleteAll();
 
       notifyListeners();

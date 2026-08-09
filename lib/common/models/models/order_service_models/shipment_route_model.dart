@@ -1,5 +1,3 @@
-import 'package:flutter_application_2/screens/schedule_directions/widgets/here_map_controller.dart';
-
 class ShipmentRoute {
   final int routeId;
   final int shipmentId;
@@ -13,13 +11,13 @@ class ShipmentRoute {
   final bool recalculated;
   final bool? isActive;
   final DateTime? createdAt;
-   final String? travelMode; 
+  final String? travelMode;
 
   ShipmentRoute({
     required this.routeId,
     required this.shipmentId,
     required this.originLat,
-    this.travelMode, 
+    this.travelMode,
     required this.originLng,
     required this.destinationLat,
     required this.destinationLng,
@@ -32,7 +30,6 @@ class ShipmentRoute {
   });
 
   factory ShipmentRoute.fromJson(Map<String, dynamic> json) {
-    
     int shipmentIdValue;
     if (json['shipment'] is int) {
       shipmentIdValue = json['shipment'] as int;
@@ -44,7 +41,7 @@ class ShipmentRoute {
 
     return ShipmentRoute(
       routeId: json['route_id'] as int,
-       travelMode: json['travel_mode'] as String?,
+      travelMode: json['travel_mode'] as String?,
       shipmentId: shipmentIdValue,
       originLat: (json['origin_lat'] as num).toDouble(),
       originLng: (json['origin_lng'] as num).toDouble(),
@@ -58,9 +55,7 @@ class ShipmentRoute {
       createdAt: json['created_at'] != null
           ? DateTime.parse(json['created_at'] as String)
           : null,
-            
     );
-
   }
 
   Map<String, dynamic> toJson() {
@@ -82,17 +77,9 @@ class ShipmentRoute {
   }
 }
 
-
-TravelMode travelModeFromString(String? mode) {
-  switch (mode?.toLowerCase()) {
-    case "pedestrian":
-      return TravelMode.pedestrian;
-    case "bicycle":
-      return TravelMode.bicycle;
-    case "scooter":
-      return TravelMode.scooter;
-    case "car":
-    default:
-      return TravelMode.car;
-  }
-}
+// Note: `travelModeFromString` used to live here, duplicating the one in
+// lib/screens/schedule_directions/widgets/travel_mode.dart. Removed —
+// import that file wherever you need the conversion instead:
+//
+//   import 'package:flutter_application_2/screens/schedule_directions/widgets/travel_mode.dart';
+//   final mode = travelModeFromString(shipmentRoute.travelMode);

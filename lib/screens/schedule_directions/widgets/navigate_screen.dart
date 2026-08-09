@@ -1,28 +1,30 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-  
+import 'package:flutter_application_2/common/widgets/flushbar_service.dart';
+import 'package:flutter_application_2/common/widgets/network_sensitivy_container.dart';
+import 'package:flutter_application_2/screens/schedule_directions/widgets/directions_service.dart';
+import 'package:flutter_application_2/screens/schedule_directions/widgets/here_map_controller.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:provider/provider.dart';
+
+import 'package:flutter_application_2/common/controller/bookings/shipment_controller.dart';
 import 'package:flutter_application_2/common/services/session_socket_service.dart';
-import 'package:flutter_application_2/screens/scan_session_qr_code/views/session_initiation_qr_screen.dart';
-import 'package:flutter_application_2/screens/schedule_directions/widgets/geo_coordinates_to_position.dart';
+
 import 'package:flutter_application_2/common/services/shipment_stauts_api.dart';
+import 'package:flutter_application_2/screens/scan_session_qr_code/views/session_initiation_qr_screen.dart';
 import 'package:flutter_application_2/screens/scheduled_services_details/widgets/schedule_flushbar_widget.dart';
 
-import 'package:here_sdk/core.dart';
-import 'package:here_sdk/mapview.dart';
-import 'package:here_sdk/routing.dart' as here;
-
-
-import 'here_map_controller.dart';
+import 'here_route_conversion.dart';
+import 'marker_loader.dart';
 
 class NavigationScreen extends StatefulWidget {
-  final here.Route route;
+  final AppRoute route;
   final TravelMode travelMode;
   final int shipmentId;
   final double? destinationLat;
   final double? destinationLng;
   final SessionSocketService sessionSocket;
-
 
   const NavigationScreen({
     super.key,
@@ -30,7 +32,6 @@ class NavigationScreen extends StatefulWidget {
     required this.travelMode,
     required this.shipmentId,
     required this.sessionSocket,
-   
     this.destinationLat,
     this.destinationLng,
   });
@@ -42,251 +43,242 @@ class NavigationScreen extends StatefulWidget {
 class _NavigationScreenState extends State<NavigationScreen> {
   DateTime? _lastRouteRecalc;
   static const int _recalcCooldownSeconds = 10;
-  static const double _arrivalDistanceMeters = 30;
-  static const double _arrivalBufferMeters = 50;
-  static const int _arrivalTimeBufferSeconds = 60;
+  // "Arrived" enter/exit radii, not a single cutoff. GPS accuracy is
+  // typically 5-15m in open areas but degrades to 20-50m near tall
+  // buildings/apartment complexes (multipath reflection) — a flat 10m
+  // threshold would leave the button stuck hidden in exactly the places
+  // deliveries most often go. 40m entry / 80m exit is the same ballpark
+  // most delivery-nav apps use. The gap between the two (hysteresis) stops
+  // the button flickering on/off as GPS jitters right at the boundary.
+  static const double _arrivalEnterRadiusMeters = 40;
+  static const double _arrivalExitRadiusMeters = 80;
 
-  HereMapControllerHelper? _helper;
-  late here.Route _currentRoute;
-  late List<here.Maneuver> _maneuvers;
+  late final GoogleMapControllerHelper _helper = GoogleMapControllerHelper(
+    sessionSocket: widget.sessionSocket,
+    shipmentId: widget.shipmentId,
+  );
+  final DirectionsService _directionsService = DirectionsService();
 
+  late AppRoute _currentRoute;
   int _currentStep = 0;
   bool _hasArrived = false;
-
-  here.Route _getRemainingRoute(GeoCoordinates userGeo, here.Route fullRoute) {
-    final remainingSections = <here.Section>[];
-    bool passedUser = false;
-
-    for (var section in fullRoute.sections) {
-      final newManeuvers = <here.Maneuver>[];
-
-      for (var m in section.maneuvers) {
-        final distanceToUser = userGeo.distanceTo(m.coordinates);
-        if (!passedUser && distanceToUser < 20) {
-          passedUser = true; // start collecting maneuvers after user
-          continue;
-        }
-        if (passedUser) newManeuvers.add(m);
-      }
-
-      if (newManeuvers.isNotEmpty) {
-        // we cannot instantiate here.Section or here.Route directly (abstract),
-        // so reuse the original section instances that remain after the user.
-        remainingSections.add(section);
-      }
-    }
-
-    // Return the original fullRoute if we cannot construct a new concrete Route.
-    // Keep using fullRoute so we avoid instantiating abstract here.Route.
-    return fullRoute;
-  }
 
   @override
   void initState() {
     super.initState();
     _currentRoute = widget.route;
-    _maneuvers = _currentRoute.sections.expand((s) => s.maneuvers).toList();
+  }
+
+  @override
+  void dispose() {
+    _helper.stopNavigationTracking();
+    _helper.dispose();
+    super.dispose();
   }
 
   // -------------------- MAP SETUP --------------------
-  void _onMapCreated(HereMapController controller) async {
-    _helper = HereMapControllerHelper(
-      sessionSocket: widget.sessionSocket,
-      controller,
-      shipmentId: widget.shipmentId,
-    );
-
-    controller.mapScene.loadSceneForMapScheme(MapScheme.normalDay, (
-      error,
-    ) async {
-      if (error != null) return;
-
-      await _initializeMap();
-    });
+  void _onMapCreated(GoogleMapController controller) async {
+    _helper.attachController(controller);
+    await _initializeMap();
   }
 
   Future<void> _initializeMap() async {
-    if (_helper == null) return;
+    final destinationIcon = await MarkerLoader.loadMarker(
+      "assets/icons/map_icons/client_marker.png",
+      48,
+    );
 
-    final destination =
-        _currentRoute.sections.last.arrivalPlace.mapMatchedCoordinates;
+    final providerIcon = await MarkerLoader.loadMarker(
+      "assets/icons/map_icons/sp_marker.png",
+      48,
+    );
 
-    await _helper!
+    _helper
+      ..setUserMarkerIcon(providerIcon)
       ..drawRoute(_currentRoute)
-      ..zoomToRoute(_currentRoute)
-      ..addDestinationMarker(
-        destination,
-        await MapImage.withFilePathAndWidthAndHeight(
-          "assets/icons/map_icons/client_marker.png",
-          96,
-          96,
-        ),
-      )
-      ..startNavigationTracking(
-        route: _currentRoute,
-        mode: widget.travelMode,
-        onUpdate: _handleNavigationUpdate,
+      ..setDestinationMarker(
+        _currentRoute.destination,
+        destinationIcon,
       );
-  }
 
-  Future<void> _handleNavigationUpdate(
-    GeoCoordinates userGeo,
-    double bearing,
-    here.Route currentRoute,
-  ) async {
-    if (_hasArrived) return;
+    // One-time overview before the chase-cam takes over — gives a brief
+    // "here's your route" beat before diving into turn-by-turn, same as
+    // most delivery-nav apps do when a trip starts.
+    await _helper.zoomToBounds(_currentRoute.bounds);
 
-    // Check off-route with cooldown
-    final now = DateTime.now();
-    if (_helper!.isOffRoute(userGeo, _currentRoute) &&
-        (_lastRouteRecalc == null ||
-            now.difference(_lastRouteRecalc!).inSeconds >
-                _recalcCooldownSeconds)) {
-      _lastRouteRecalc = now;
-
-      final destination =
-          _currentRoute.sections.last.arrivalPlace.mapMatchedCoordinates;
-
-      final newRoutes = await _helper!.calculateRouteAsync([
-        here.Waypoint(userGeo),
-        here.Waypoint(destination),
-      ], widget.travelMode);
-
-      if (newRoutes.isNotEmpty) {
-        _currentRoute = newRoutes.first;
-
-        // Center and zoom to the new route using helper
-        _helper!.zoomToRoute(_currentRoute);
-      }
-    }
-
-    // Continue normal update
-    _onNavigationUpdate(userGeo, bearing, _currentRoute);
+    _helper.startNavigationTracking(
+      route: _currentRoute,
+      onUpdate: _handleNavigationUpdate,
+    );
   }
 
   // -------------------- NAVIGATION UPDATE --------------------
-void _onNavigationUpdate(
-  GeoCoordinates userGeo,
-  double bearing,
-  here.Route updatedRoute,
-) async {
-  if (_hasArrived) return;
+  Future<void> _handleNavigationUpdate(
+    LatLng userGeo,
+    double bearing,
+    AppRoute route,
+  ) async {
+    if (_hasArrived) return;
 
-  setState(() {
-    _currentRoute = updatedRoute;
-    _maneuvers = updatedRoute.sections.expand((s) => s.maneuvers).toList();
-  });
+    // Off-route recalculation, cooldown-gated. The Directions API is billed
+    // per call, so we don't fire it on every single GPS update the way an
+    // on-device engine could afford to.
+    final now = DateTime.now();
+    final offRoute = _helper.isOffRoute(userGeo, _currentRoute.polylinePoints);
+    final cooldownElapsed = _lastRouteRecalc == null ||
+        now.difference(_lastRouteRecalc!).inSeconds > _recalcCooldownSeconds;
 
-  _updateCurrentStep(userGeo);
-  _checkArrival(userGeo, updatedRoute);
+    if (offRoute && cooldownElapsed) {
+      _lastRouteRecalc = now;
 
-  final destination =
-      updatedRoute.sections.last.arrivalPlace.mapMatchedCoordinates;
+      final newRoute = await _directionsService.getRoute(
+        origin: userGeo,
+        destination: _currentRoute.destination,
+        mode: widget.travelMode,
+      );
 
-  final routes = await _helper!.calculateRouteAsync(
-    [here.Waypoint(userGeo), here.Waypoint(destination)],
-    widget.travelMode,
-  );
+      if (newRoute != null) {
+        _currentRoute = newRoute;
+        // Just redraw the line under the driver — do NOT zoomToBounds here.
+        // The follow-cam is already tracking the driver continuously; a
+        // bounds-fit on every reroute would yank the camera out to an
+        // overview shot mid-navigation, which is disorienting rather than
+        // reassuring. The new line simply appears under the existing view.
+        _helper.drawRoute(_currentRoute);
+      }
+    }
 
-  if (routes.isNotEmpty) {
-    _currentRoute = routes.first;
-    _helper!
-      ..drawRoute(_currentRoute!)
-      ..focusOnLocation(positionFromGeo(userGeo));
+    setState(() {
+      _updateCurrentStep(userGeo);
+    });
+    _checkArrival(userGeo, _currentRoute);
   }
-}
 
-
-  void _updateCurrentStep(GeoCoordinates userGeo) {
-    for (int i = 0; i < _maneuvers.length; i++) {
-      if (userGeo.distanceTo(_maneuvers[i].coordinates) < 20) {
+  void _updateCurrentStep(LatLng userGeo) {
+    for (int i = 0; i < _currentRoute.steps.length; i++) {
+      final d = Geolocator.distanceBetween(
+        userGeo.latitude,
+        userGeo.longitude,
+        _currentRoute.steps[i].location.latitude,
+        _currentRoute.steps[i].location.longitude,
+      );
+      if (d < 20) {
         _currentStep = i;
         break;
       }
     }
   }
 
-  void _checkArrival(GeoCoordinates userGeo, here.Route route) {
-    final destination = route.sections.last.arrivalPlace.mapMatchedCoordinates;
-    final distanceRemaining = userGeo.distanceTo(destination);
-    final timeRemaining = route.duration.inSeconds;
+  void _checkArrival(LatLng userGeo, AppRoute route) {
+    final distanceRemaining = Geolocator.distanceBetween(
+      userGeo.latitude,
+      userGeo.longitude,
+      route.destination.latitude,
+      route.destination.longitude,
+    );
 
-    if (distanceRemaining <= (_arrivalDistanceMeters + _arrivalBufferMeters) ||
-        timeRemaining <= _arrivalTimeBufferSeconds) {
-      if (!_hasArrived) {
-        setState(() => _hasArrived = true);
-        HapticFeedback.mediumImpact();
-        ScheduleFlushbar.success(context, "You have arrived at the destination!");
-      }
+    if (!_hasArrived && distanceRemaining <= _arrivalEnterRadiusMeters) {
+      setState(() => _hasArrived = true);
+      HapticFeedback.mediumImpact();
+      ScheduleFlushbar.success(context, "You have arrived at the destination!");
+    } else if (_hasArrived && distanceRemaining > _arrivalExitRadiusMeters) {
+      // Driver moved back away from the destination (missed it, got
+      // rerouted around the block, etc.) — pull the button back until
+      // they're genuinely close again, rather than leaving it stuck on.
+      setState(() => _hasArrived = false);
     }
   }
 
   Future<void> _markArrived() async {
-  showDialog(
-    context: context,
-    barrierDismissible: false,
-    builder: (_) => const Center(child: CircularProgressIndicator()),
-  );
-
-  final success = await ShipmentStatusApi.updateStatus(
-    widget.shipmentId,
-    "arrived",
-  );
- _helper?.stopNavigationTracking();
-  Navigator.pop(context); // close loader
-
-  if (!success) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Failed to update shipment status")),
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
     );
-    return;
+
+    final success = await ShipmentStatusApi.updateStatus(
+      widget.shipmentId,
+      "arrived",
+    );
+
+    _helper.stopNavigationTracking();
+
+    Navigator.pop(context);
+
+    if (!success) {
+      FlushbarService.error(context, "Failed to mark as arrived. Please try again.");
+      return;
+    }
+
+    final shipmentCtrl = context.read<ShipmentController>();
+    await shipmentCtrl.fetchShipments();
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => SessionInitiationQrScreen(
+          shipmentId: widget.shipmentId,
+          sessionSocket: widget.sessionSocket,
+        ),
+      ),
+    );
   }
-
-  /// ✅ REFRESH ShipmentController BEFORE NAVIGATION
- 
-
-  /// ✅ THEN NAVIGATE
-  Navigator.pushReplacement(
-    context,
-    MaterialPageRoute(
-      builder: (_) =>
-          SessionInitiationQrScreen(shipmentId: widget.shipmentId, sessionSocket: widget.sessionSocket,),
-    ),
-  );
-}
-
 
   // -------------------- UI --------------------
   @override
-@override
-Widget build(BuildContext context) {
-  return PopScope(
-    canPop: false,
-    onPopInvoked: (didPop) {
-      if (didPop) return;
-
-     
-      ScheduleFlushbar.warning(
-        context,
-        "Navigation is active. Complete the trip first.",
-      );
-    },
-    child: Scaffold(
-      body: Stack(
-        children: [
-          HereMap(onMapCreated: _onMapCreated),
-          _buildManeuverCard(),
-          _buildBottomStatusCard(),
-        ],
+  Widget build(BuildContext context) {
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) {
+        if (didPop) return;
+        ScheduleFlushbar.warning(
+          context,
+          "Navigation is active. Complete the trip first.",
+        );
+      },
+      child: SensitiveContainer(
+        child: Scaffold(
+          body: ListenableBuilder(
+            listenable: _helper,
+            builder: (context, _) => Stack(
+              children: [
+                GoogleMap(
+                  initialCameraPosition: CameraPosition(
+                    target: widget.route.origin,
+                    zoom: 16,
+                    tilt: 55,
+                  ),
+                  onMapCreated: _onMapCreated,
+                  markers: _helper.markers,
+                  polylines: _helper.polylines,
+                  // Off — we have our own recenter button tied to the
+                  // follow-cam, so the stock locate button would be a
+                  // confusing second "recenter" affordance.
+                  myLocationButtonEnabled: false,
+                  onCameraMoveStarted: () {
+                    // Every camera move we trigger ourselves sets a flag right
+                    // before it happens. If this move wasn't flagged, the
+                    // driver dragged the map — drop out of follow mode so we
+                    // don't fight their gesture.
+                    if (!_helper.consumeProgrammaticMoveFlag()) {
+                      _helper.stopFollowing();
+                    }
+                  },
+                ),
+                _buildManeuverCard(),
+                _buildBottomStatusCard(),
+                if (!_helper.isFollowing) _buildRecenterButton(),
+              ],
+            ),
+          ),
+        ),
       ),
-    ),
-  );
-}
-
+    );
+  }
 
   Widget _buildManeuverCard() {
-    final maneuverText = _maneuvers.isNotEmpty
-        ? _maneuvers[_currentStep].text
+    final maneuverText = _currentRoute.steps.isNotEmpty
+        ? _currentRoute.steps[_currentStep].instruction
         : "Continue";
 
     return Positioned(
@@ -300,12 +292,25 @@ Widget build(BuildContext context) {
             maneuverText,
             style: TextStyle(
               fontWeight: FontWeight.bold,
-              color: _currentStep == _maneuvers.length - 1
+              color: _currentStep == _currentRoute.steps.length - 1
                   ? Colors.red
                   : Colors.black,
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildRecenterButton() {
+    return Positioned(
+      bottom: 100,
+      right: 16,
+      child: FloatingActionButton(
+        heroTag: "recenter",
+        backgroundColor: Colors.white,
+        onPressed: () => _helper.resumeFollowing(),
+        child: const Icon(Icons.navigation, color: Colors.blue),
       ),
     );
   }
@@ -325,9 +330,7 @@ Widget build(BuildContext context) {
               _buildTimeText(),
               _hasArrived
                   ? ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
-                      ),
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
                       onPressed: _markArrived,
                       child: const Text("Arrived"),
                     )
@@ -340,28 +343,25 @@ Widget build(BuildContext context) {
   }
 
   Widget _buildDistanceText() {
-    final destination =
-        _currentRoute.sections.last.arrivalPlace.mapMatchedCoordinates;
-    final distanceMeters =
-        _helper?.userCoordinates?.distanceTo(destination) ??
-        _currentRoute.lengthInMeters;
+    final userPos = _helper.userCoordinates;
+    final distanceMeters = userPos != null
+        ? Geolocator.distanceBetween(
+            userPos.latitude,
+            userPos.longitude,
+            _currentRoute.destination.latitude,
+            _currentRoute.destination.longitude,
+          )
+        : _currentRoute.distanceMeters;
 
     if (distanceMeters < 950) return Text("${distanceMeters.round()} m");
     return Text("${(distanceMeters / 1000).toStringAsFixed(1)} km");
   }
 
   Widget _buildTimeText() {
-    final remainingSeconds = _currentRoute.duration.inSeconds;
+    final remainingSeconds = _currentRoute.durationSeconds;
     if (remainingSeconds < 50) return Text("$remainingSeconds sec");
 
     final minutes = (remainingSeconds / 60).round();
     return Text("$minutes min");
-  }
-
-  @override
-  void dispose() {
-    _helper?.dispose();
-    _helper?.stopNavigationTracking();
-    super.dispose();
   }
 }

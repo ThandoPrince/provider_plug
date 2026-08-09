@@ -1,67 +1,35 @@
-import 'dart:async';
+/// Shared travel mode enum. Kept in its own tiny file (rather than inside
+/// google_map_controller.dart or directions_service.dart) so both can import
+/// it without creating a circular dependency between them.
+enum TravelMode { car, pedestrian, bicycle, scooter }
 
-import 'package:here_sdk/core.dart';
-import 'package:here_sdk/routing.dart' as here;
-import 'package:flutter_application_2/common/models/models/order_service_models/shipment_route_model.dart';
-import 'here_map_controller.dart';
-
-/// Map backend travel_mode string to TravelMode enum
-TravelMode mapTravelMode(String mode) {
-  switch (mode.toLowerCase()) {
-    case "car":
-      return TravelMode.car;
-    case "pedestrian":
+TravelMode travelModeFromString(String? mode) {
+  switch ((mode ?? 'car').toLowerCase()) {
+    case 'pedestrian':
       return TravelMode.pedestrian;
-    case "bicycle":
+    case 'bicycle':
       return TravelMode.bicycle;
-    case "scooter":
+    case 'scooter':
       return TravelMode.scooter;
+    case 'car':
     default:
       return TravelMode.car;
   }
 }
 
-/// Standalone converter: converts a backend ShipmentRoute to a HERE SDK Route
-Future<here.Route> convertShipmentRouteToHereRoute(ShipmentRoute route) async {
-  final routingEngine = here.RoutingEngine();
-
-  final waypoints = [
-    here.Waypoint(GeoCoordinates(route.originLat, route.originLng)),
-    here.Waypoint(GeoCoordinates(route.destinationLat, route.destinationLng)),
-  ];
-
-  // Determine transport mode
-  final travelMode = mapTravelMode(route.travelMode ?? "car");
-
-  final completer = Completer<List<here.Route>>();
-
-  void callback(here.RoutingError? error, List<here.Route>? routes) {
-    if (error != null) {
-      completer.completeError("Routing failed: ${error.toString()}");
-    } else {
-      completer.complete(routes ?? []);
-    }
-  }
-
-  switch (travelMode) {
+String travelModeToApiString(TravelMode mode) {
+  switch (mode) {
     case TravelMode.car:
-      routingEngine.calculateCarRoute(waypoints, here.CarOptions(), callback);
-      break;
+      return 'driving';
     case TravelMode.pedestrian:
-      routingEngine.calculatePedestrianRoute(
-          waypoints, here.PedestrianOptions(), callback);
-      break;
+      return 'walking';
     case TravelMode.bicycle:
+      return 'bicycling';
     case TravelMode.scooter:
-      routingEngine.calculateBicycleRoute(
-          waypoints, here.BicycleOptions(), callback);
-      break;
+      // The Directions API has no "scooter" mode. `two_wheeler` exists but is
+      // only supported in a handful of countries (mainly India), so we fall
+      // back to bicycling everywhere else. Swap this if your users are in a
+      // two_wheeler-supported region.
+      return 'bicycling';
   }
-
-  final routes = await completer.future;
-  if (routes.isEmpty) {
-    throw Exception("Failed to convert ShipmentRoute ${route.routeId}");
-  }
-
-  return routes.first;
 }

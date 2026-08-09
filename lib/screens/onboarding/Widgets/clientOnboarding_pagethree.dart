@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_application_2/common/storage.dart';
 import 'package:flutter_application_2/common/utils/kcolors.dart';
 import 'package:flutter_application_2/common/widgets/custom_button.dart';
+import 'package:flutter_application_2/common/widgets/flushbar_service.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_vector_icons/flutter_vector_icons.dart';
 import 'package:geolocator/geolocator.dart';
@@ -34,68 +35,36 @@ class _OnboardingScreenThreeState extends State<OnboardingScreenThree> {
   }
 
   Future<void> _handleGetStarted() async {
-    if (!_isAgreed) {
-      _showTopMessage(
-        "Please accept the Terms of Use to continue.",
-        isError: true,
-      );
-      return;
-    }
-
-    final status = await Permission.locationWhenInUse.request();
-
-    if (status.isGranted) {
-      HapticFeedback.heavyImpact();
-      Storage().setBool('isFirstTimeProvider', false);
-      context.go("/auth_registration");
-    } else {
-      _showTopMessage(
-        "Location access is required to find jobs in your area.",
-        isError: true,
-      );
-    }
+  if (!_isAgreed) {
+    FlushbarService.error(
+      context,
+      "Please accept the Terms of Use to continue.",
+    );
+    return;
   }
 
-  void _showTopMessage(String message, {bool isError = false}) {
-    final messenger = ScaffoldMessenger.of(context);
+  final status = await Permission.locationWhenInUse.request();
 
-    messenger
-      ..hideCurrentMaterialBanner()
-      ..showMaterialBanner(
-        MaterialBanner(
-          backgroundColor: isError ? Colors.redAccent : Kolors.kPrimary,
-          content: Text(
-            message,
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 14.sp,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          leading: Icon(
-            isError ? Icons.error_outline : Icons.info_outline,
-            color: Colors.white,
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                messenger.hideCurrentMaterialBanner();
-              },
-              child: const Text(
-                "DISMISS",
-                style: TextStyle(color: Colors.white),
-              ),
-            ),
-          ],
-        ),
-      );
+  if (status.isGranted) {
+    HapticFeedback.heavyImpact();
 
-    Future.delayed(const Duration(seconds: 3), () {
-      if (mounted) {
-        messenger.hideCurrentMaterialBanner();
-      }
-    });
+    Storage().setBool(
+      'isFirstTimeProvider',
+      false,
+    );
+
+    if (!mounted) return;
+
+    context.go("/auth_registration");
+  } else {
+    FlushbarService.error(
+      context,
+      "Location access is required to find jobs in your area.",
+    );
   }
+}
+
+  
 
   @override
   Widget build(BuildContext context) {

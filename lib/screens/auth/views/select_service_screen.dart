@@ -5,6 +5,7 @@ import 'package:flutter_application_2/common/models/models/services_model.dart';
 import 'package:flutter_application_2/common/services/fetch_approved_services_api.dart';
 import 'package:flutter_application_2/common/utils/kcolors.dart';
 import 'package:flutter_application_2/common/widgets/flushbar_service.dart';
+import 'package:flutter_application_2/common/widgets/shimmers/select_service_skeleton.dart';
 import 'package:flutter_application_2/screens/auth/widgets/verification_prompt_sheet.dart';
 import 'package:flutter_application_2/screens/onboarding/Widgets/back_exit_widget.dart';
 import 'package:go_router/go_router.dart';
@@ -21,29 +22,62 @@ class SelectServiceScreen extends StatefulWidget {
 }
 
 class _SelectServiceScreenState extends State<SelectServiceScreen> {
-  late Future<List<ServiceModel>> _servicesFuture;
   List<ServiceModel> _allServices = [];
   List<ServiceModel> _filteredServices = [];
   ServiceModel? _selectedService;
   final TextEditingController _searchController = TextEditingController();
 
+  bool _isLoading = true;
+  String? _errorMessage;
+
   @override
   void initState() {
     super.initState();
-
-    final _linkController = context.read<LinkServiceController>();
-
-
-
-    _servicesFuture = FetchApprovedServicesApi.fetchApprovedServices();
     _searchController.addListener(_filterServices);
+    _loadServices();
   }
 
-  Future<void> _handleRefresh() async {
-  setState(() {
-    _servicesFuture = FetchApprovedServicesApi.fetchApprovedServices();
-  });
-}
+  Future<void> _loadServices() async {
+    // Only show the full-list skeleton on the true first load. A
+    // pull-to-refresh with cached services keeps the list visible and
+    // lets RefreshIndicator's own spinner communicate "refreshing".
+    if (_allServices.isEmpty) {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
+    }
+
+    try {
+      final services = await FetchApprovedServicesApi.fetchApprovedServices();
+
+      if (!mounted) return;
+
+      setState(() {
+        _allServices = services;
+        if (_searchController.text.isEmpty) {
+          _filteredServices = _allServices;
+        } else {
+          _filterServices();
+        }
+        _isLoading = false;
+        _errorMessage = null;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _isLoading = false;
+        if (_allServices.isEmpty) {
+          _errorMessage = "Couldn't load services";
+        }
+        // If we already have cached services, swallow the refresh error
+        // silently rather than replacing a working list with an error view.
+      });
+    }
+  }
+
+  Future<void> _handleRefresh() => _loadServices();
 
   void _filterServices() {
     final query = _searchController.text.toLowerCase();
@@ -74,212 +108,202 @@ class _SelectServiceScreenState extends State<SelectServiceScreen> {
           ),
         ),
         body: Container(
-          width: double.infinity,
-          height: double.infinity,
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [Kolors.kPrimary, Color(0xFF1A1A1A)],
-            ),
+        width: double.infinity,
+        height: double.infinity,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Kolors.kPrimary, Color(0xFF1A1A1A)],
           ),
-      
-          child: FutureBuilder<List<ServiceModel>>( 
-            future: _servicesFuture,
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(
-                  child: CircularProgressIndicator(color: Kolors.kPrimary),
-                );
-              }
-              if (snapshot.hasError) {
-        return Center(
+        ),
+        child: RefreshIndicator(
+          onRefresh: _handleRefresh,
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(Icons.cloud_off, color: Colors.white54, size: 64),
-              const SizedBox(height: 16),
-              const Text("Couldn't load services", style: TextStyle(color: Colors.white)),
-              TextButton(
-                onPressed: _handleRefresh,
-                child: const Text("Retry", style: TextStyle(color: Kolors.kPrimary)),
-              )
-            ],
-          ),
-        );
-      }
-      
-              _allServices = snapshot.data ?? [];
-              if (_searchController.text.isEmpty && _filteredServices.isEmpty) {
-                _filteredServices = _allServices;
-              }
-      
-              return RefreshIndicator(
-                onRefresh: _handleRefresh,
+              // --- Header Section ---
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // --- Header Section ---
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            "Step 1 of 2",
-                            style: theme.textTheme.labelMedium?.copyWith(
-                              color: Kolors.kOffWhite,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 1.2,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            "What service do you provide?",
-                            style: theme.textTheme.headlineSmall?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: Kolors.kOffWhite,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            "Select your primary expertise to continue.",
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: Kolors.kOffWhite,
-                            ),
-                          ),
-                        ],
+                    Text(
+                      "Step 1 of 2",
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        color: Kolors.kOffWhite,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.2,
                       ),
                     ),
-                
-                    // --- Pro Search Bar ---
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Kolors.kDark.withOpacity(0.04),
-                              blurRadius: 15,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: TextField(
-                          controller: _searchController,
-                          cursorColor: Kolors.kPrimary,
-                          decoration: const InputDecoration(
-                            hintText: "Search services...",
-                            hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
-                            prefixIcon: Icon(
-                              Icons.search_rounded,
-                              color: Colors.grey,
-                            ),
-                            border: InputBorder.none,
-                            contentPadding: EdgeInsets.symmetric(vertical: 15),
-                          ),
-                        ),
+                    const SizedBox(height: 8),
+                    Text(
+                      "What service do you provide?",
+                      style: theme.textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: Kolors.kOffWhite,
                       ),
                     ),
-                
-                    // --- Service Grid/List ---
-                    Expanded(
-                      child: _filteredServices.isEmpty
-                          ? _buildEmptyState()
-                          : ListView.builder(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 24,
-                                vertical: 8,
-                              ),
-                              itemCount: _filteredServices.length,
-                              itemBuilder: (context, index) {
-                                final service = _filteredServices[index];
-                                final isSelected = _selectedService == service;
-                
-                                return GestureDetector(
-                                  onTap: () {
-                                    setState(() {
-                                      if (_selectedService == service) {
-                                        _selectedService = null;
-                                      } else {
-                                        _selectedService = service;
-                                      }
-                                    });
-                                  },
-                                  child: AnimatedContainer(
-                                    duration: const Duration(milliseconds: 250),
-                                    margin: const EdgeInsets.only(bottom: 12),
-                                    padding: const EdgeInsets.all(16),
-                                    decoration: BoxDecoration(
-                                      color: isSelected
-                                          ? Colors.white
-                                          : Colors.white.withOpacity(0.7),
-                                      borderRadius: BorderRadius.circular(16),
-                                      border: Border.all(
-                                        color: isSelected
-                                            ? Kolors.kPrimary
-                                            : Colors.transparent,
-                                        width: 2,
-                                      ),
-                                      boxShadow: [
-                                        if (isSelected)
-                                          BoxShadow(
-                                            color: Kolors.kPrimary.withOpacity(0.1),
-                                            blurRadius: 10,
-                                            offset: const Offset(0, 4),
-                                          ),
-                                      ],
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                service.serviceName ?? "",
-                                                style: TextStyle(
-                                                  fontSize: 16,
-                                                  fontWeight: isSelected
-                                                      ? FontWeight.bold
-                                                      : FontWeight.w500,
-                                                  color: Kolors.kDark,
-                                                ),
-                                              ),
-                                              const SizedBox(height: 6),
-                                              _buildRiskBadge(
-                                                service.riskLevel ?? "LOW",
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                        Icon(
-                                          isSelected
-                                              ? Icons.check_circle_rounded
-                                              : Icons.radio_button_off_rounded,
-                                          color: isSelected
-                                              ? Kolors.kPrimary
-                                              : Colors.grey[300],
-                                          size: 26,
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
+                    const SizedBox(height: 8),
+                    Text(
+                      "Select your primary expertise to continue.",
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: Kolors.kOffWhite,
+                      ),
                     ),
-                
-                    _buildStickyFooter(theme),
                   ],
                 ),
-              );
-            },
+              ),
+
+              // --- Pro Search Bar ---
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Kolors.kDark.withOpacity(0.04),
+                        blurRadius: 15,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: TextField(
+                    controller: _searchController,
+                    cursorColor: Kolors.kPrimary,
+                    decoration: const InputDecoration(
+                      hintText: "Search services...",
+                      hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
+                      prefixIcon: Icon(
+                        Icons.search_rounded,
+                        color: Colors.grey,
+                      ),
+                      border: InputBorder.none,
+                      contentPadding: EdgeInsets.symmetric(vertical: 15),
+                    ),
+                  ),
+                ),
+              ),
+
+              // --- Service Grid/List ---
+              Expanded(
+                child: _isLoading
+                    ? const SelectServiceSkeleton()
+                    : (_errorMessage != null
+                        ? Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.cloud_off, color: Colors.white54, size: 64),
+                                const SizedBox(height: 16),
+                                const Text(
+                                  "Couldn't load services",
+                                  style: TextStyle(color: Colors.white),
+                                ),
+                                TextButton(
+                                  onPressed: _handleRefresh,
+                                  child: const Text(
+                                    "Retry",
+                                    style: TextStyle(color: Kolors.kPrimary),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        : (_filteredServices.isEmpty
+                            ? _buildEmptyState()
+                            : ListView.builder(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 24,
+                                  vertical: 8,
+                                ),
+                                itemCount: _filteredServices.length,
+                                itemBuilder: (context, index) {
+                                  final service = _filteredServices[index];
+                                  final isSelected = _selectedService == service;
+
+                                  return GestureDetector(
+                                    onTap: () {
+                                      setState(() {
+                                        if (_selectedService == service) {
+                                          _selectedService = null;
+                                        } else {
+                                          _selectedService = service;
+                                        }
+                                      });
+                                    },
+                                    child: AnimatedContainer(
+                                      duration: const Duration(milliseconds: 250),
+                                      margin: const EdgeInsets.only(bottom: 12),
+                                      padding: const EdgeInsets.all(16),
+                                      decoration: BoxDecoration(
+                                        color: isSelected
+                                            ? Colors.white
+                                            : Colors.white.withOpacity(0.7),
+                                        borderRadius: BorderRadius.circular(16),
+                                        border: Border.all(
+                                          color: isSelected
+                                              ? Kolors.kPrimary
+                                              : Colors.transparent,
+                                          width: 2,
+                                        ),
+                                        boxShadow: [
+                                          if (isSelected)
+                                            BoxShadow(
+                                              color: Kolors.kPrimary.withOpacity(0.1),
+                                              blurRadius: 10,
+                                              offset: const Offset(0, 4),
+                                            ),
+                                        ],
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  service.serviceName ?? "",
+                                                  style: TextStyle(
+                                                    fontSize: 16,
+                                                    fontWeight: isSelected
+                                                        ? FontWeight.bold
+                                                        : FontWeight.w500,
+                                                    color: Kolors.kDark,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 6),
+                                                _buildRiskBadge(
+                                                  service.riskLevel ?? "LOW",
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          Icon(
+                                            isSelected
+                                                ? Icons.check_circle_rounded
+                                                : Icons.radio_button_off_rounded,
+                                            color: isSelected
+                                                ? Kolors.kPrimary
+                                                : Colors.grey[300],
+                                            size: 26,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ))),
+              ),
+
+              _buildStickyFooter(theme),
+            ],
           ),
         ),
+      ),
       ),
     );
   }

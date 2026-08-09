@@ -22,7 +22,9 @@ class ApiClient {
       AuthSessionController.instance.accessToken;  String? getAccessToken() {
   return AuthSessionController.instance.accessToken;
 }
-
+Future<String?> refreshToken() async {
+  return AuthSessionController.instance.refreshAccessToken();
+}
     Future<http.Response> multipartRequest(
     Future<http.MultipartRequest> Function(String? token) builder,
   ) async {

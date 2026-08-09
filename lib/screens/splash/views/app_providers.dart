@@ -3,6 +3,7 @@ import 'package:flutter_application_2/common/controller/auth/get_provider_for_se
 import 'package:flutter_application_2/common/controller/auth/sp_login_controller.dart';
 import 'package:flutter_application_2/common/controller/bookings/booking_by_orderID_controller.dart';
 import 'package:flutter_application_2/common/controller/bookings/bookings_by_email_controller.dart';
+import 'package:flutter_application_2/common/controller/bookings/cancel_shipment_controller.dart';
 import 'package:flutter_application_2/common/controller/bookings/get_shipment_route_controller.dart';
 import 'package:flutter_application_2/common/controller/bookings/negotiation_rounds_ctrl.dart';
 import 'package:flutter_application_2/common/controller/bookings/remove_invitation_controller.dart';
@@ -17,6 +18,8 @@ import 'package:flutter_application_2/common/controller/bookings/sp_negotiation_
 import 'package:flutter_application_2/common/controller/bookings/sp_negotiations_by_id_email_ctrl.dart';
 import 'package:flutter_application_2/common/controller/bookings/update_ratings_controller.dart';
 import 'package:flutter_application_2/common/controller/client/client_ratings_controller.dart';
+import 'package:flutter_application_2/common/controller/registration/a_cost_of_a_service_controller.dart';
+import 'package:flutter_application_2/common/controller/registration/a_link_a_service_controller.dart';
 import 'package:flutter_application_2/common/controller/registration/address_id_doc_controller.dart';
 import 'package:flutter_application_2/common/controller/registration/cost_of_service_controller.dart';
 import 'package:flutter_application_2/common/controller/registration/fetch_approved_services_controller.dart';
@@ -29,8 +32,17 @@ import 'package:flutter_application_2/common/controller/registration/provider_qu
 import 'package:flutter_application_2/common/controller/registration/upload_provider_service_affidavit_controller.dart';
 import 'package:flutter_application_2/common/controller/sp_contollers/completed_services_controller.dart';
 import 'package:flutter_application_2/common/controller/sp_contollers/cost_of_a_service_controller.dart';
+import 'package:flutter_application_2/common/controller/sp_contollers/deactivate_provider_service_controller.dart';
+import 'package:flutter_application_2/common/controller/sp_contollers/delete_cost_of_service_image_controller.dart';
+import 'package:flutter_application_2/common/controller/sp_contollers/delete_provider_qualification_controller.dart';
+import 'package:flutter_application_2/common/controller/sp_contollers/get_cost_of_service_images_controller.dart';
+import 'package:flutter_application_2/common/controller/sp_contollers/get_provider_qualification_controller.dart';
 import 'package:flutter_application_2/common/controller/sp_contollers/provider_active_controller.dart';
+import 'package:flutter_application_2/common/controller/sp_contollers/provider_logout_controller.dart';
+import 'package:flutter_application_2/common/controller/sp_contollers/provider_profile_update_controller.dart';
 import 'package:flutter_application_2/common/controller/sp_contollers/sp_profile_ctrl.dart';
+import 'package:flutter_application_2/common/controller/sp_contollers/update_cost_of_a_service_controller.dart';
+import 'package:flutter_application_2/common/controller/sp_contollers/upload_cost_of_service_images_controller.dart';
 import 'package:flutter_application_2/common/controller/sp_live_location_controller.dart';
 import 'package:flutter_application_2/common/services/provider_booking_socket_service.dart';
 import 'package:flutter_application_2/common/services/session_socket_service.dart';
@@ -54,6 +66,14 @@ class AppProviders {
         ChangeNotifierProvider<GetProviderForServiceController>(
           create: (_) => GetProviderForServiceController(),
         ),
+
+         ChangeNotifierProvider<ALinkServiceController>(
+          create: (_) => ALinkServiceController(),
+        ),
+
+        ChangeNotifierProvider<DeactivateProviderServiceController >(
+          create: (_) => DeactivateProviderServiceController (),
+        ),
         ChangeNotifierProvider<FetchAuthController>(
           create: (_) => FetchAuthController(),
         ),
@@ -75,6 +95,10 @@ ChangeNotifierProvider<ClientRatingsController>(
         ),
         ChangeNotifierProvider<FetchApprovedServicesController>(
           create: (_) => FetchApprovedServicesController(),
+        ),
+
+        ChangeNotifierProvider<ACostOfServiceController>(
+          create: (_) => ACostOfServiceController(),
         ),
         ChangeNotifierProvider<FetchServiceGroupByController>(
           create: (_) => FetchServiceGroupByController(),
@@ -102,6 +126,11 @@ ChangeNotifierProvider<ClientRatingsController>(
           create: (_) => OnboardingNotifier(),
         ),
 
+         
+
+ ChangeNotifierProvider<ProviderProfileController >(
+          create: (_) => ProviderProfileController (),
+        ),
 
 Provider<SessionSocketService>(
   create: (_) => SessionSocketService(),
@@ -134,6 +163,14 @@ ChangeNotifierProxyProvider<SpNegotiationsByIdEmailCtrl, SPBookingController>(
 
 ChangeNotifierProvider<UploadProviderServiceAffidavitController>(
           create: (_) => UploadProviderServiceAffidavitController(),
+        ),
+
+        ChangeNotifierProvider<DeleteCostOfServiceImageController>(
+          create: (_) => DeleteCostOfServiceImageController(),
+        ),
+
+        ChangeNotifierProvider<CancelShipmentController>(
+          create: (_) => CancelShipmentController(),
         ),
 
         ChangeNotifierProvider<SpProfileCtrl>(
@@ -170,6 +207,9 @@ ChangeNotifierProvider<UploadProviderServiceAffidavitController>(
         ChangeNotifierProvider<RatingController>(
           create: (_) => RatingController(),
         ),
+        ChangeNotifierProvider<GetProviderQualificationController>(
+          create: (_) => GetProviderQualificationController(),
+        ),
         ChangeNotifierProvider<ShipmentRouteFetchController>(
           create: (_) => ShipmentRouteFetchController(),
         ),
@@ -182,5 +222,26 @@ ChangeNotifierProvider<UploadProviderServiceAffidavitController>(
         ChangeNotifierProvider<ShipmentByIdController>(
           create: (_) => ShipmentByIdController(),
         ),
+        ChangeNotifierProvider<GetCostOfServiceImagesController>(
+          create: (_) => GetCostOfServiceImagesController(),
+        ),
+
+        ChangeNotifierProvider<UpdateCostOfAServiceController>(
+          create: (_) => UpdateCostOfAServiceController(),
+        ),
+        ChangeNotifierProvider<UploadCostOfServiceImagesController>(
+          create: (_) => UploadCostOfServiceImagesController(),
+        ),
+        ChangeNotifierProvider<DeleteProviderQualificationController>(
+          create: (_) => DeleteProviderQualificationController(),
+        ),
+        ChangeNotifierProvider<ProviderLogoutController>(
+  create: (context) => ProviderLogoutController(
+    liveLocationController:
+        context.read<SpLiveLocationPostController>(),
+    bookingController:
+        context.read<SPBookingController>(),
+  ),
+),
       ];
 }

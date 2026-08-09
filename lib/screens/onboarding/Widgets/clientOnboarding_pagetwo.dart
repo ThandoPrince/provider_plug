@@ -64,7 +64,7 @@ class _OnboardingScreenTwoState extends State<OnboardingScreenTwo> {
                     ),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(35.r),
-                      child: const Onboardingslidertwo(), 
+                      child: const OnboardingSliderTwo(), 
                     ),
                   ),
                 ),

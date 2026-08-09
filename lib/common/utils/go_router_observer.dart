@@ -6,8 +6,8 @@ class ShipmentRefreshObserver extends NavigatorObserver {
   final BuildContext context;
 
 
-  final String providerEmail;
-  ShipmentRefreshObserver(this.context, this.providerEmail);
+  
+  ShipmentRefreshObserver(this.context);
 
   @override
   void didPop(Route route, Route? previousRoute) {
@@ -17,6 +17,10 @@ class ShipmentRefreshObserver extends NavigatorObserver {
     if (previousRoute?.settings.name == '/scheduled_services') {
       // Refresh the ShipmentController
       final shipmentCtrl = Provider.of<ShipmentController>(context, listen: false);
+
+debugPrint(
+  "Observer ShipmentController: ${shipmentCtrl.hashCode}",
+);
       shipmentCtrl.fetchShipments();
     }
   }

@@ -280,6 +280,7 @@ class _SessionInitiationQrScreenState extends State<SessionInitiationQrScreen>
 
     final shipmentId =
         data["shipment"]["shipment_id"].toString();
+        
 
     final session =
         await SessionApi.getSessionByShipment(shipmentId);

@@ -27,10 +27,21 @@ class _UploadAffidavitScreenState extends State<UploadAffidavitScreen> {
   File? _selectedFile;
   String? _selectedFileName;
 
-  // TODO: point this at the actual hosted affidavit template (PDF).
+
   static final String _baseUrl = dotenv.env['MEDIA_BASE_URL']!;
   static final String affidavitTemplateUrl =
-      "$_baseUrl/static/templates/PLUG_Service_Provider_Declaration_v2.pdf";
+      "$_baseUrl/static/templates/PLUG_Service_Provider_Declaration_One_Page.pdf";
+
+@override
+void initState() {
+  super.initState();
+
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    if (!mounted) return;
+
+    context.read<UploadProviderServiceAffidavitController>().reset();
+  });
+}      
 
   Future<void> _pickFile() async {
     final result = await FilePicker.pickFiles(
@@ -181,7 +192,7 @@ class _UploadAffidavitScreenState extends State<UploadAffidavitScreen> {
         ),
         const SizedBox(height: 12),
         Text(
-          "Upload a signed copy of the affidavit to verify your identity and qualifications.",
+          "Upload a signed copy of the affidavit to verify your identity and skills.",
           style: theme.textTheme.bodyMedium?.copyWith(
             color: Kolors.kOffWhite.withOpacity(0.8),
           ),

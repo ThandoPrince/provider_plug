@@ -13,9 +13,9 @@ class GetProviderForServiceApi {
   static final String baseUrl = dotenv.env['API_BASE_URL'] ?? '';
 
   /// GET: Fetches active services offered by a provider matching their email identifier.
-  static Future<Map<String, dynamic>> fetchProviderServices(String email) async {
+  static Future<Map<String, dynamic>> fetchProviderServices() async {
     final providerID = AuthSessionController.instance.id;
-    final uri = Uri.parse('$baseUrl/service_provider/services/$providerID');
+    final uri = Uri.parse('$baseUrl/service_provider/services/$providerID/');
 
     try {
       final response = await ApiClient.instance.request(

@@ -1,0 +1,14 @@
+name: Local Nemotron
+version: 1.0.0
+schema: v1
+
+models:
+  - name: Nemotron
+    provider: openai
+    model: nemotron
+    apiBase: http://localhost:4000/v1
+    apiKey: anything
+    roles:
+      - chat
+      - edit
+      - apply

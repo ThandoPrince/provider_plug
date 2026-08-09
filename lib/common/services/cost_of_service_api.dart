@@ -6,7 +6,7 @@ import 'package:flutter_application_2/common/controller/registration/api_client.
 import 'package:flutter_application_2/common/controller/registration/api_exeption.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
-import 'package:flutter_application_2/common/controller/auth/auth_session_controller.dart';
+
 
 class CostOfServiceApi {
   static final String baseUrl = dotenv.env['API_BASE_URL'] ?? '';

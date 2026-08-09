@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_application_2/common/utils/kcolors.dart';
 import 'scheduled_order_card.dart';
 
 class ScheduledOrdersList extends StatelessWidget {
@@ -14,6 +15,8 @@ class ScheduledOrdersList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return RefreshIndicator(
+      color: Colors.white,
+    backgroundColor: Kolors.kPrimary,
       onRefresh: onRefresh,
       child: ListView.builder(
         padding: const EdgeInsets.all(16),

@@ -2,13 +2,16 @@ import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_application_2/common/controller/bookings/shipment_controller.dart';
+import 'package:flutter_application_2/common/controller/sp_contollers/completed_services_controller.dart';
 import 'package:flutter_application_2/common/models/models/order_service_models/session_model.dart';
 
 import 'package:flutter_application_2/common/controller/bookings/session_status_controller.dart';
 import 'package:flutter_application_2/common/services/session_by_shipment_api.dart';
 import 'package:flutter_application_2/common/services/session_socket_service.dart';
+import 'package:flutter_application_2/common/widgets/network_sensitivy_container.dart';
 import 'package:flutter_application_2/screens/scheduled_services_details/widgets/schedule_flushbar_widget.dart';
-import 'package:flutter_application_2/screens/session/widgets/client_profile_row.dart';
+
 
 import 'package:flutter_application_2/screens/session/widgets/session_helpers.dart';
 import 'package:flutter_application_2/screens/ratings_screen/views/ratings_screen.dart';
@@ -177,81 +180,71 @@ void initState() {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF121212), // Dark Theme Background
-      appBar: AppBar(
-        systemOverlayStyle: SystemUiOverlayStyle.light,
-        title: const Text(
-          "ACTIVE SESSION",
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, letterSpacing: 2, color: Colors.white),
+    return SensitiveContainer(
+      child: Scaffold(
+        backgroundColor: const Color(0xFF121212), // Dark Theme Background
+        appBar: AppBar(
+          systemOverlayStyle: SystemUiOverlayStyle.light,
+          title: const Text(
+            "ACTIVE SESSION",
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, letterSpacing: 2, color: Colors.white),
+          ),
+          centerTitle: true,
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 18),
+            onPressed: () => Navigator.pop(context),
+          ),
         ),
-        centerTitle: true,
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 18),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-      body: Column(
-        children: [
-          _buildLiveTimerHeader(),
-          if (_isOutsideGeofence)
-    _buildGeofenceWarning(),
-          Expanded(
-            child: Container(
-              width: double.infinity,
-              decoration: const BoxDecoration(
-                color: Color(0xFFF8F9FA), // Professional Off-white Sheet
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(32),
-                  topRight: Radius.circular(32),
+        body: Column(
+          children: [
+            _buildLiveTimerHeader(),
+            if (_isOutsideGeofence)
+      _buildGeofenceWarning(),
+            Expanded(
+              child: Container(
+                width: double.infinity,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFF8F9FA), // Professional Off-white Sheet
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(32),
+                    topRight: Radius.circular(32),
+                  ),
                 ),
-              ),
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildSectionLabel("JOB DETAILS"),
-                    const SizedBox(height: 12),
-                    _buildInfoCard(
-                      child: Column(
-                        children: [
-                          _buildDetailRow(Icons.fingerprint, "Session ID", "#${widget.session.sessionId}"),
-                          _buildDivider(),
-                          _buildDetailRow(Icons.local_shipping_outlined, "Shipment ID", "#${widget.session.shipment?.shipmentId}"),
-                          _buildDivider(),
-                          _buildDetailRow(Icons.calendar_today_outlined, "Check-in Time", 
-                            widget.session.checkinTime != null 
-                            ? DateFormat("dd MMM yyyy - HH:mm").format(DateTime.parse(widget.session.checkinTime.toString()).toLocal())
-                            : "-"),
-                          _buildDivider(),
-                          _buildDetailRow(Icons.handyman_outlined, "Service", widget.session.shipment?.serviceOrdered?.order?.serviceRequired?.serviceName ?? "-"),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 32),
-                    if (widget.session.shipment?.serviceOrdered?.order?.client != null) ...[
-                      _buildSectionLabel("CLIENT INFORMATION"),
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildSectionLabel("JOB DETAILS"),
                       const SizedBox(height: 12),
                       _buildInfoCard(
-                        child: ClientProfileRow(
-                          name: "${widget.session.shipment!.serviceOrdered!.order!.client!.firstName} ${widget.session.shipment!.serviceOrdered!.order!.client!.lastName}",
-                          imageUrl: widget.session.shipment?.serviceOrdered?.order?.client?.profileImageUrl,
-                          rating: double.tryParse(widget.session.shipment?.serviceOrdered?.order?.client?.rating ?? ''),
+                        child: Column(
+                          children: [
+                            _buildDetailRow(Icons.fingerprint, "Session ID", "#${widget.session.sessionId}"),
+                            
+                            _buildDivider(),
+                            _buildDetailRow(Icons.calendar_today_outlined, "Check-in Time", 
+                              widget.session.checkinTime != null 
+                              ? DateFormat("dd MMM yyyy - HH:mm").format(DateTime.parse(widget.session.checkinTime.toString()).toLocal())
+                              : "-"),
+                            _buildDivider(),
+                            _buildDetailRow(Icons.handyman_outlined, "Service", widget.session.shipment?.serviceOrdered?.order?.serviceRequired?.serviceName ?? "-"),
+                          ],
                         ),
                       ),
+                     
+                      const SizedBox(height: 48),
+                      if (!isCompleted) _buildEndSessionButton(),
+                      const SizedBox(height: 20),
                     ],
-                    const SizedBox(height: 48),
-                    if (!isCompleted) _buildEndSessionButton(),
-                    const SizedBox(height: 20),
-                  ],
+                  ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -483,12 +476,22 @@ void initState() {
           );
 
       if (success && mounted) {
+  final shipmentCtrl = context.read<ShipmentController>();
+
+  debugPrint(
+    "Ratings screen ShipmentController: ${shipmentCtrl.hashCode}",
+  );
+
+  await shipmentCtrl.fetchShipments();
+
+  await context.read<ProviderRatingsController>().fetchRatings();
+
   _stopAllTimers();
 
   // Disconnect the session websocket permanently before leaving.
   await widget.sessionSocket.disconnect();
 
-  Navigator.of(context).pop(); // Pop loading
+  Navigator.of(context).pop();
 
   Navigator.pushReplacement(
     context,

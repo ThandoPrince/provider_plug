@@ -1,11 +1,13 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_application_2/common/controller/bookings/shipment_controller.dart';
 import 'package:flutter_application_2/common/controller/bookings/sp_accept_negotiation_ctrl.dart';
 import 'package:flutter_application_2/common/controller/bookings/sp_negotiation_round_ctrl.dart';
 import 'package:flutter_application_2/common/controller/bookings/sp_negotiations_by_id_email_ctrl.dart';
 import 'package:flutter_application_2/common/models/models/order_service_models/negotiation/negotiation_round_model.dart';
 import 'package:flutter_application_2/common/utils/kcolors.dart';
+import 'package:flutter_application_2/common/widgets/shimmers/negotiation_chat_skeleton.dart';
 import 'package:flutter_application_2/common/widgets/show_top_notification.dart';
 import 'package:flutter_application_2/screens/entryPoint/controller/bottom_tab_notifier.dart';
 import 'package:intl/intl.dart';
@@ -172,20 +174,41 @@ class _NegotiationBottomSheetContentState
 
     return Consumer2<SpNegotiationsByIdEmailCtrl, SpNegotiationRoundCtrl>(
       builder: (context, controller, roundCtrl, _) {
-        if (controller.isLoading(key)) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        if (controller.error(key)?.isNotEmpty ?? false) {
-          return Center(
-            child: Text(
-              controller.error(key)!,
-              style: const TextStyle(color: Colors.red),
-            ),
-          );
-        }
-
         final negotiations = controller.negotiations(key);
+
+        // Only show the full chat skeleton on the very first load.
+        // A background refresh (e.g. right after sending a message)
+        // already has cached negotiations, so it updates in place
+        // instead of tearing down and reloading the whole sheet.
+        if (controller.isLoading(key) && negotiations.isEmpty) {
+          return const NegotiationChatSkeleton();
+        }
+
+        if ((controller.error(key)?.isNotEmpty ?? false) &&
+    negotiations.isEmpty) {
+  return Center(
+    child: Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const Icon(
+          Icons.error_outline,
+          color: Colors.white,
+          size: 48,
+        ),
+        const SizedBox(height: 12),
+        Text(
+          controller.error(key)!,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 14,
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
         if (negotiations.isNotEmpty && _negotiationId == null) {
           _negotiationId = negotiations.first.negotiationId;
         }
@@ -201,9 +224,6 @@ class _NegotiationBottomSheetContentState
 
         final pendingRounds = roundCtrl.pendingRoundsFor(_negotiationId);
 
-        // Merge confirmed + pending so the "waiting" banner and the list
-        // both react the instant a message is sent — no need to wait for
-        // the network round trip.
         final allRounds = [...confirmedRounds, ...pendingRounds]
           ..sort(
             (a, b) => (a.createdAt ?? DateTime(1970))
@@ -250,7 +270,6 @@ class _NegotiationBottomSheetContentState
       },
     );
   }
-
   // --- UI Building Widgets ---
 
   Widget _buildRoundBubble(
@@ -541,6 +560,10 @@ class _NegotiationBottomSheetContentState
     // 2b. Confirmed — sync canonical state, then close out.
     await context.read<SpNegotiationsByIdEmailCtrl>()
         .refreshNegotiations(orderId: widget.orderId);
+        final shipmentCtrl = context.read<ShipmentController>();
+        
+        debugPrint("Accept screen ShipmentController: ${shipmentCtrl.hashCode}");
+        await shipmentCtrl.fetchShipments();
 
     if (!mounted) return;
 
